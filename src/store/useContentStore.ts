@@ -1,7 +1,7 @@
 /**
- * User-authored content — letters, dreams, real timeline moments, profiles.
+ * User-authored content -- letters, dreams, real timeline moments, profiles.
  * Primary storage: localStorage (offline-first).
- * Secondary sync: MongoDB Atlas Data API (when configured in .env.local).
+ * Cloud sync: Firebase Firestore (syncs automatically, even across offline gaps).
  * Media files: Firebase Storage (photos/videos/audio uploads).
  */
 import { create } from 'zustand';
@@ -9,7 +9,14 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import type { PersonId } from '@/store/useAuthStore';
 import type { LetterCategory } from '@/data/letters';
 import type { DreamCategory } from '@/data/dreams';
-import { syncLetter, syncDream, syncMemory, removeFromAtlas } from '@/lib/mongoAtlas';
+import {
+  syncLetter,
+  syncDream,
+  syncMemory,
+  syncGalleryItem,
+  removeFromFirestore,
+  pullCollection,
+} from '@/lib/firestoreSync';
 import { ref as storageRef, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { storage, FIREBASE_CONFIGURED } from '@/lib/firebase';
 
@@ -84,6 +91,13 @@ interface ContentState {
 
   /** Upload a file to Firebase Storage and return the download URL */
   uploadMedia: (file: File, path: string) => Promise<string | null>;
+
+  /**
+   * Pull content from Firestore and merge with local state.
+   * Called after login so both partners see each other's content on any device.
+   * Local items always win over cloud items (preserves any offline writes).
+   */
+  pullFromFirestore: () => Promise<void>;
 }
 
 const uid = (p: string) => `${p}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
@@ -116,7 +130,7 @@ export const useContentStore = create<ContentState>()(
         }),
       deleteLetter: (id) => {
         set((s) => ({ letters: s.letters.filter((l) => l.id !== id) }));
-        void removeFromAtlas('letters', id);
+        void removeFromFirestore('letters', id);
       },
 
       addDream: (d) => {
@@ -126,7 +140,7 @@ export const useContentStore = create<ContentState>()(
       },
       deleteDream: (id) => {
         set((s) => ({ dreams: s.dreams.filter((d) => d.id !== id) }));
-        void removeFromAtlas('dreams', id);
+        void removeFromFirestore('dreams', id);
       },
 
       addMemory: (m) => {
@@ -136,15 +150,17 @@ export const useContentStore = create<ContentState>()(
       },
       deleteMemory: (id) => {
         set((s) => ({ memories: s.memories.filter((m) => m.id !== id) }));
-        void removeFromAtlas('memories', id);
+        void removeFromFirestore('memories', id);
       },
 
       addGalleryItem: (g) => {
         const item: GalleryItem = { ...g, id: uid('ugallery'), createdAt: new Date().toISOString() };
         set((s) => ({ gallery: [item, ...s.gallery] }));
+        void syncGalleryItem(item);
       },
       deleteGalleryItem: (id) => {
         set((s) => ({ gallery: s.gallery.filter((g) => g.id !== id) }));
+        void removeFromFirestore('gallery', id);
       },
 
       uploadMedia: async (file, path) => {
@@ -159,13 +175,45 @@ export const useContentStore = create<ContentState>()(
         }
       },
 
-      // Pull all content from MongoDB Atlas on first login to new device
-      // (called from useAuthStore.login after Firebase auth succeeds)
+      pullFromFirestore: async () => {
+        const state = get();
+        const localLetterIds = new Set(state.letters.map((l) => l.id));
+        const localDreamIds = new Set(state.dreams.map((d) => d.id));
+        const localMemoryIds = new Set(state.memories.map((m) => m.id));
+        const localGalleryIds = new Set(state.gallery.map((g) => g.id));
+
+        const [cloudLetters, cloudDreams, cloudMemories, cloudGallery] = await Promise.all([
+          pullCollection<UserLetter>('letters'),
+          pullCollection<UserDream>('dreams'),
+          pullCollection<UserMemory>('memories'),
+          pullCollection<GalleryItem>('gallery'),
+        ]);
+
+        // Add cloud items missing locally (local version wins when both exist)
+        set((s) => ({
+          letters: [
+            ...s.letters,
+            ...cloudLetters.filter((l) => !localLetterIds.has(l.id)),
+          ].sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
+          dreams: [
+            ...s.dreams,
+            ...cloudDreams.filter((d) => !localDreamIds.has(d.id)),
+          ].sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
+          memories: [
+            ...s.memories,
+            ...cloudMemories.filter((m) => !localMemoryIds.has(m.id)),
+          ].sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
+          gallery: [
+            ...s.gallery,
+            ...cloudGallery.filter((g) => !localGalleryIds.has(g.id)),
+          ].sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
+        }));
+      },
     }),
     {
       name: 'our-story:content',
       storage: createJSONStorage(() => localStorage),
-      version: 2,
+      version: 3,
     },
   ),
 );

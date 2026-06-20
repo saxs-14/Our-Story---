@@ -76,8 +76,10 @@ export const useAuthStore = create<AuthState>()(
 
       login: async (userId) => {
         set({ userId });
-        // Fire-and-forget Firebase sign-in so Firestore chat works
         await signIntoFirebase(userId);
+        // Pull cloud content in the background after Firebase auth completes
+        const { useContentStore } = await import('@/store/useContentStore');
+        void useContentStore.getState().pullFromFirestore();
       },
 
       logout: async () => {
