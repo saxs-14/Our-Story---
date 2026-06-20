@@ -11,6 +11,7 @@ import {
   StatsIcon,
   WrappedIcon,
   KeyIcon,
+  ChatIcon,
 } from '@/components/icons';
 
 export interface NavItem {
@@ -25,16 +26,17 @@ export interface NavItem {
 }
 
 export const NAV_ITEMS: NavItem[] = [
-  { path: '/', label: 'Home', icon: HomeIcon, primary: true, blurb: 'Our living counter & today’s note' },
+  { path: '/', label: 'Home', icon: HomeIcon, primary: true, blurb: "Our living counter & today's note" },
+  { path: '/chat', label: 'Chat', icon: ChatIcon, primary: true, blurb: 'Talk to each other, anytime' },
+  { path: '/timeline', label: 'Timeline', icon: TimelineIcon, primary: true, blurb: 'From friends to forever' },
+  { path: '/garden', label: 'Garden', icon: LeafIcon, primary: true, blurb: 'A living garden of us' },
   { path: '/vault', label: 'Vault', icon: EnvelopeIcon, primary: true, blurb: 'Open-when letters for every mood' },
   { path: '/reasons', label: 'Reasons', icon: SparkleIcon, blurb: '500 reasons I love you' },
-  { path: '/timeline', label: 'Timeline', icon: TimelineIcon, primary: true, blurb: 'From friends to forever' },
   { path: '/gallery', label: 'Gallery', icon: GalleryIcon, blurb: 'Our moments, framed' },
-  { path: '/garden', label: 'Garden', icon: LeafIcon, primary: true, blurb: 'A living garden of us' },
-  { path: '/dreams', label: 'Dreams', icon: StarIcon, blurb: 'The future we’re building' },
+  { path: '/dreams', label: 'Dreams', icon: StarIcon, blurb: "The future we're building" },
   { path: '/letters', label: 'Letters', icon: LetterIcon, blurb: 'A library of love letters' },
   { path: '/statistics', label: 'Statistics', icon: StatsIcon, blurb: 'Our story in numbers' },
-  { path: '/wrapped', label: 'Wrapped', icon: WrappedIcon, blurb: 'Our year, replayed' },
+  { path: '/wrapped', label: 'Wrapped', icon: WrappedIcon, blurb: 'Our story, replayed' },
   { path: '/secret', label: 'Secret', icon: KeyIcon, secret: true, blurb: 'Hidden, just for you' },
 ];
 

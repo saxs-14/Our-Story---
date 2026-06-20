@@ -20,6 +20,7 @@ import { MusicPlayer } from '@/components/system/MusicPlayer';
 import { HeartFilledIcon } from '@/components/icons';
 
 const Home = lazy(() => import('@/pages/Home'));
+const Chat = lazy(() => import('@/pages/Chat'));
 const Vault = lazy(() => import('@/pages/Vault'));
 const Reasons = lazy(() => import('@/pages/Reasons'));
 const Timeline = lazy(() => import('@/pages/Timeline'));
@@ -116,6 +117,7 @@ export default function App() {
             <AnimatePresence mode="wait">
               <Routes location={location} key={location.pathname}>
                 <Route path="/" element={<Home onReplayIntro={() => { setShowIntro(true); navigate('/'); }} />} />
+                <Route path="/chat" element={<Chat />} />
                 <Route path="/vault" element={<Vault />} />
                 <Route path="/reasons" element={<Reasons />} />
                 <Route path="/timeline" element={<Timeline />} />

@@ -42,7 +42,7 @@ export function LoginGate() {
     if (verify(picked, pw)) {
       haptic('success');
       playSound('unlock');
-      login(picked);
+      void login(picked);
     } else {
       setError(true);
       haptic('soft');

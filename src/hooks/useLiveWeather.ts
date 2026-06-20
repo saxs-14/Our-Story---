@@ -12,26 +12,26 @@ export interface LiveWeather {
   fetchedAt: string;
 }
 
-/** WMO weather codes → human label, emoji, and a tender one-liner. */
+/** WMO weather codes -> human label, emoji, and a tender one-liner. */
 function describe(code: number, isDay: boolean): { label: string; emoji: string; loveLine: string } {
   const sun = isDay ? '☀️' : '🌙';
   const map: Record<number, { label: string; emoji: string; loveLine: string }> = {
     0: { label: 'Clear sky', emoji: sun, loveLine: 'Clear skies — exactly how you make everything feel.' },
     1: { label: 'Mostly clear', emoji: isDay ? '🌤️' : '🌙', loveLine: 'Mostly clear, with a 100% chance of thinking about you.' },
-    2: { label: 'Partly cloudy', emoji: '⛅', loveLine: 'A few clouds, but you’re the sunshine that gets through.' },
+    2: { label: 'Partly cloudy', emoji: '⛅', loveLine: "A few clouds, but you're the sunshine that gets through." },
     3: { label: 'Overcast', emoji: '☁️', loveLine: 'Grey skies out there — let me be the warm in your day.' },
     45: { label: 'Foggy', emoji: '🌫️', loveLine: 'Foggy out — but I always know my way back to you.' },
     48: { label: 'Foggy', emoji: '🌫️', loveLine: 'Misty morning, perfect for staying tangled up a little longer.' },
     51: { label: 'Light drizzle', emoji: '🌦️', loveLine: 'A soft drizzle — cosy-up weather, ideally with me.' },
-    61: { label: 'Light rain', emoji: '🌧️', loveLine: 'Rain’s falling — blanket, tea, and you. Best forecast there is.' },
+    61: { label: 'Light rain', emoji: '🌧️', loveLine: "Rain's falling — blanket, tea, and you. Best forecast there is." },
     63: { label: 'Rain', emoji: '🌧️', loveLine: 'Rainy day; the kind made for slow mornings together.' },
-    65: { label: 'Heavy rain', emoji: '🌧️', loveLine: 'Pouring out there — stay dry, my love, I’ve got the umbrella.' },
-    71: { label: 'Light snow', emoji: '🌨️', loveLine: 'Snow flurries — let’s catch them on our tongues like children.' },
+    65: { label: 'Heavy rain', emoji: '🌧️', loveLine: "Pouring out there — stay dry, my love, I've got the umbrella." },
+    71: { label: 'Light snow', emoji: '🌨️', loveLine: "Snow flurries — let's catch them on our tongues like children." },
     73: { label: 'Snow', emoji: '❄️', loveLine: 'Snow falling — cuddle season is officially open.' },
-    80: { label: 'Showers', emoji: '🌦️', loveLine: 'Passing showers, like every worry when I’m with you.' },
+    80: { label: 'Showers', emoji: '🌦️', loveLine: "Passing showers, like every worry when I'm with you." },
     95: { label: 'Thunderstorm', emoji: '⛈️', loveLine: 'Storms outside — but the safest place is right next to me.' },
   };
-  return map[code] ?? { label: 'Pleasant', emoji: sun, loveLine: 'Whatever the sky’s doing, my forecast is always you.' };
+  return map[code] ?? { label: 'Pleasant', emoji: sun, loveLine: "Whatever the sky's doing, my forecast is always you." };
 }
 
 const CACHE_KEY = 'live-weather';
@@ -72,7 +72,7 @@ export function useLiveWeather(): { weather: LiveWeather | null; loading: boolea
             saveJSON(CACHE_KEY, result);
           }
         } catch {
-          /* offline / API down → keep cached value */
+          /* offline / API down -> keep cached value */
         } finally {
           if (active) setLoading(false);
         }

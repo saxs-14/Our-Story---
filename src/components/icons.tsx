@@ -195,3 +195,9 @@ export const HeartFilledIcon = (p: IconProps) => (
     <path d="M12 20.5C7 17 3.5 13.8 3.5 9.6 3.5 7 5.5 5 8 5c1.7 0 3.1.9 4 2.3C12.9 5.9 14.3 5 16 5c2.5 0 4.5 2 4.5 4.6 0 4.2-3.5 7.4-8.5 10.9Z" />
   </svg>
 );
+
+export const ChatIcon = (p: IconProps) => (
+  <Base {...p}>
+    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+  </Base>
+);
