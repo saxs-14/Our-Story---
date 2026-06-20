@@ -36,10 +36,16 @@ function PortraitCard({ id }: { id: PersonId }) {
           </span>
         </div>
       </MediaUpload>
-      <p className="mt-2 font-display text-lg text-[color:var(--ink-strong)]">{person.nickname}</p>
+      <p className="mt-2 font-display text-lg font-semibold text-[color:var(--ink-strong)]">{person.nickname}</p>
       <p className="text-[0.6rem] uppercase tracking-luxe text-[color:var(--ink-soft)]">
         {formatLongDate(person.birthday).replace(/ \d{4}$/, '')}
       </p>
+      {id === 'her' && (
+        <p className="mt-0.5 text-[0.55rem] text-champagne-600">✝️ God-fearing</p>
+      )}
+      {id === 'him' && (
+        <p className="mt-0.5 text-[0.55rem] text-rosegold-500">💻 Builder of this</p>
+      )}
     </div>
   );
 }

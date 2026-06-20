@@ -231,6 +231,21 @@ export default function Home({ onReplayIntro }: { onReplayIntro?: () => void }) 
         ))}
       </div>
 
+      {/* Faith & devotion — for Ayanda */}
+      <GlassCard strong className="mt-4 p-5">
+        <p className="text-xs font-medium uppercase tracking-luxe text-champagne-600">🙏 Faith & Love</p>
+        <p className="mt-2 font-serif text-lg leading-relaxed text-[color:var(--ink-strong)]">
+          "Two are better than one, because they have a good return for their labour: if either of them falls down, one can help the other up."
+        </p>
+        <p className="mt-2 text-xs text-[color:var(--ink-soft)]">Ecclesiastes 4:9–10 · A verse for us</p>
+        <div className="mt-3 flex items-center gap-2">
+          <span className="text-lg">✝️</span>
+          <p className="text-sm text-[color:var(--ink-soft)]">
+            Ayanda's faith is the anchor of her heart — and it makes her who she is. We keep God at the centre.
+          </p>
+        </div>
+      </GlassCard>
+
       {/* A quiet doorway to the secret — for the curious heart that looks closely */}
       <div className="mt-10 flex flex-col items-center gap-1">
         <Link

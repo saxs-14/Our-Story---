@@ -48,6 +48,9 @@ export function useLiveWeather(): { weather: LiveWeather | null; loading: boolea
       return;
     }
 
+    // Mbombela, Mpumalanga, South Africa — fallback when geolocation is denied
+    const MBOMBELA = { latitude: -25.4653, longitude: 30.9858 };
+
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
         try {
@@ -74,10 +77,31 @@ export function useLiveWeather(): { weather: LiveWeather | null; loading: boolea
           if (active) setLoading(false);
         }
       },
-      () => {
-        if (active) {
-          setDenied(true);
-          setLoading(false);
+      async () => {
+        // Geolocation denied — fall back to Mbombela, Mpumalanga
+        try {
+          const { latitude, longitude } = MBOMBELA;
+          const url = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,weather_code,is_day&timezone=Africa%2FJohannesburg`;
+          const res = await fetch(url);
+          const json = await res.json();
+          const cur = json.current;
+          const d = describe(cur.weather_code, cur.is_day === 1);
+          const result: LiveWeather = {
+            tempC: Math.round(cur.temperature_2m),
+            code: cur.weather_code,
+            isDay: cur.is_day === 1,
+            ...d,
+            fetchedAt: new Date().toISOString(),
+          };
+          if (active) {
+            setWeather(result);
+            saveJSON(CACHE_KEY, result);
+            setDenied(true);
+          }
+        } catch {
+          /* offline */
+        } finally {
+          if (active) setLoading(false);
         }
       },
       { timeout: 8000, maximumAge: 1000 * 60 * 30 },

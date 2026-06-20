@@ -1,7 +1,8 @@
 /**
- * The Memory Timeline & Memory Map source.
- * Events are typed (friendship / relationship / milestone / future) and may
- * carry coordinates for the stylised map. Dates are configurable anchors.
+ * The Memory Timeline — only REAL confirmed moments.
+ * Fake or guessed entries have been removed.
+ * Add new entries here as Phathu or Ayanda share what actually happened.
+ * Users add their own moments live via the Timeline page compose form.
  */
 import relationship from '@/config/relationship';
 
@@ -23,6 +24,7 @@ export interface MemoryEvent {
 const { friendshipStart, relationshipStart, her, him, origin } = relationship;
 
 export const MEMORIES: MemoryEvent[] = [
+  // ── Real confirmed moments ────────────────────────────────────────────────
   {
     id: 'm-friendship',
     date: friendshipStart,
@@ -36,52 +38,22 @@ export const MEMORIES: MemoryEvent[] = [
     lng: origin.lng,
   },
   {
-    id: 'm-firstlaugh',
-    date: '2024-03-10',
-    title: 'The first real laugh',
-    description: 'The kind that goes on too long and changes the temperature of a friendship.',
-    type: 'friendship',
-    emoji: '😂',
-  },
-  {
-    id: 'm-latenight',
-    date: '2024-05-22',
-    title: 'The conversation that ran late',
-    description: 'Neither of us wanted to be the one to say goodnight. So we didn’t, for hours.',
-    type: 'friendship',
-    emoji: '🌙',
-  },
-  {
-    id: 'm-herbday-24',
-    date: '2024-03-04',
-    title: `${her.nickname}’s birthday`,
+    id: 'm-herbday-25',
+    date: '2025-03-04',
+    title: `${her.nickname}'s birthday 2025`,
     description: 'The day the world quietly celebrates the best thing it ever did.',
     type: 'milestone',
     emoji: '🎂',
+    place: origin.place,
   },
   {
-    id: 'm-trust',
-    date: '2024-08-14',
-    title: 'When we started to trust',
-    description: 'The first time something private was shared and held with care.',
-    type: 'friendship',
-    emoji: '🤝',
-  },
-  {
-    id: 'm-realising',
-    date: '2025-02-14',
-    title: 'The realising',
-    description: 'A slow, certain understanding that this was more than friendship now.',
-    type: 'milestone',
-    emoji: '💭',
-  },
-  {
-    id: 'm-himbday',
-    date: him.birthday,
-    title: `${him.nickname}’s birthday`,
+    id: 'm-himbday-25',
+    date: '2025-06-14',
+    title: `${him.nickname}'s birthday 2025`,
     description: 'Another year of the person lucky enough to love you.',
     type: 'milestone',
     emoji: '🎈',
+    place: origin.place,
   },
   {
     id: 'm-official',
@@ -98,11 +70,23 @@ export const MEMORIES: MemoryEvent[] = [
   {
     id: 'm-firstmonth',
     date: '2026-06-08',
-    title: 'One month of us',
+    title: 'One month of us 🥂',
     description: 'Our very first monthiversary — small number, enormous feeling.',
     type: 'relationship',
     emoji: '🥂',
+    place: origin.place,
   },
+  {
+    id: 'm-herbday-26',
+    date: '2026-03-04',
+    title: `${her.nickname}'s birthday 2026`,
+    description: 'Celebrating the most important person.',
+    type: 'milestone',
+    emoji: '🎂',
+    place: origin.place,
+  },
+
+  // ── Future aspirations (clearly marked) ───────────────────────────────────
   {
     id: 'm-future-anniv',
     date: '2027-05-08',
@@ -115,7 +99,7 @@ export const MEMORIES: MemoryEvent[] = [
     id: 'm-future-trip',
     date: '2027-12-20',
     title: 'The trip we keep talking about',
-    description: 'Somewhere with a sunset worth the wait. We’ll get there.',
+    description: "Somewhere with a sunset worth the wait. We'll get there.",
     type: 'future',
     emoji: '✈️',
   },

@@ -59,9 +59,9 @@ export const relationship: RelationshipConfig = {
   friendshipStart: '2024-02-01',
   relationshipStart: '2026-05-08',
   origin: {
-    place: 'Where two worlds quietly became one',
-    lat: -25.7479,
-    lng: 28.2293, // Pretoria, South Africa — adjust freely
+    place: 'Mbombela, Mpumalanga, South Africa',
+    lat: -25.4653,
+    lng: 30.9858,
   },
   tagline: 'Every moment matters.',
   signature: 'Always & in all ways,\nPhathu',
