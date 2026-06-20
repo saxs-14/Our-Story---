@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Our Story — offline</title>
+    <style>
+      :root { color-scheme: dark; }
+      body {
+        margin: 0; min-height: 100vh; display: grid; place-items: center;
+        background: radial-gradient(circle at 50% 30%, #2a172a, #160b16 60%, #0d060d);
+        color: #fff6f0; font-family: Georgia, 'Times New Roman', serif; text-align: center; padding: 2rem;
+      }
+      h1 { font-size: 2rem; font-weight: 600; margin: 0 0 .5rem; }
+      p { color: #c7a9b5; max-width: 22rem; line-height: 1.6; }
+      .heart { font-size: 3rem; animation: beat 2s ease-in-out infinite; }
+      @keyframes beat { 0%,100%{ transform: scale(1);} 14%{ transform: scale(1.12);} 28%{ transform: scale(1);} 42%{ transform: scale(1.08);} 70%{ transform: scale(1);} }
+    </style>
+  </head>
+  <body>
+    <div>
+      <div class="heart">❤️</div>
+      <h1>We're a little offline</h1>
+      <p>Our story is saved on your device — reconnect and it'll come right back. Some moments are worth waiting for.</p>
+    </div>
+  </body>
+</html>

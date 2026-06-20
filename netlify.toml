@@ -1,0 +1,14 @@
+# Netlify deployment for Our Story ❤️
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "20"
+  VITE_BASE = "/"
+
+# SPA fallback (the app uses hash routing, but this keeps any direct path safe)
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

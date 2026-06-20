@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <defs>
+    <radialGradient id="bg" cx="35%" cy="28%" r="80%">
+      <stop offset="0%" stop-color="#3a2547"/>
+      <stop offset="60%" stop-color="#241019"/>
+      <stop offset="100%" stop-color="#0d060d"/>
+    </radialGradient>
+    <linearGradient id="heart" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#f6c9a8"/>
+      <stop offset="45%" stop-color="#e3706a"/>
+      <stop offset="100%" stop-color="#b76e79"/>
+    </linearGradient>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="1.6" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <rect width="64" height="64" rx="16" fill="url(#bg)"/>
+  <path filter="url(#glow)" fill="url(#heart)"
+    d="M32 48C20 39 13 32.5 13 24.5 13 19.3 17 15 22.2 15c3.4 0 6.3 1.9 7.8 4.7C31.5 16.9 34.4 15 37.8 15 43 15 47 19.3 47 24.5 47 32.5 40 39 32 48Z"/>
+</svg>
