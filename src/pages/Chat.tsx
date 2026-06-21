@@ -113,7 +113,7 @@ function OfflineBanner() {
 
 export default function Chat() {
   const userId = useAuthStore((s) => s.userId);
-  const { messages, unreadCount, subscribe, sendMessage, sendMedia, markRead, uploading, uploadProgress } =
+  const { messages, unreadCount, sendMessage, sendMedia, markRead, uploading, uploadProgress } =
     useChatStore();
   const [text, setText] = useState('');
   const [mediaPreview, setMediaPreview] = useState<{ file: File; preview: string } | null>(null);
@@ -125,11 +125,8 @@ export default function Chat() {
   const me = personById(userId);
   const partner = personById(partnerOf(userId));
 
-  useEffect(() => {
-    const unsub = subscribe(userId);
-    return () => { unsub?.(); };
-  }, [userId, subscribe]);
-
+  // The app-wide ChatNotifier owns the Firestore subscription; here we just
+  // mark the conversation read whenever it's open and new messages arrive.
   useEffect(() => {
     markRead(userId);
   }, [messages.length, userId, markRead]);

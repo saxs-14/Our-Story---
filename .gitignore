@@ -24,3 +24,6 @@ dist-ssr
 
 # PWA build artifacts
 dev-dist
+
+# Built Android binaries (rebuildable; distribute via GitHub Releases instead)
+*.apk

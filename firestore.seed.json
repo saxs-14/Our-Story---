@@ -1,0 +1,192 @@
+{
+  "_README": "Curated starter content for the Our Story Firestore database. Collections map to docId -> document. Upload with: node scripts/seed-firestore.mjs. Edit any of this freely before uploading; you can also delete/replace it inside the app afterwards. Authored Phathu <-> Ayanda; dates anchored to friendshipStart 2024-02-01 and relationshipStart 2026-05-08 (Mbombela, Mpumalanga).",
+
+  "letters": {
+    "seed-letter-01": {
+      "authorId": "him",
+      "to": "her",
+      "category": "Love",
+      "title": "The first thing I'll tell our kids",
+      "body": "One day when our kids ask how we started, I'm telling them the truth: I was terrified. I had a whole speech ready and forgot every word the second you looked at me. You make me brave and nervous at the same time, Ayanda, and I would choose that feeling every single day.",
+      "createdAt": "2026-06-16T09:12:00.000Z"
+    },
+    "seed-letter-02": {
+      "authorId": "him",
+      "to": "her",
+      "category": "Gratitude",
+      "title": "Thank you for the ordinary days",
+      "body": "Everyone talks about the big moments. My favourite part of loving you is the boring stuff: you telling me what you ate, us arguing about whose playlist we use, you falling asleep on a call. Thank you for making ordinary days feel like somewhere I actually want to live.",
+      "createdAt": "2026-06-17T19:40:00.000Z"
+    },
+    "seed-letter-03": {
+      "authorId": "her",
+      "to": "him",
+      "category": "Love",
+      "title": "To the one who built me a world",
+      "body": "Phathu, you literally built me an entire app just to remind me I'm loved. Who does that? You do. I don't always have the words the way you do, but hear me on this one: I see you. All of you. And I'm not going anywhere.",
+      "createdAt": "2026-06-18T21:05:00.000Z"
+    },
+    "seed-letter-04": {
+      "authorId": "him",
+      "to": "her",
+      "category": "Future",
+      "title": "A house in Mbombela",
+      "body": "I keep picturing it. A small place not far from home, music a little too loud, your shoes by the door where I always trip on them. We'll figure out the money and the timing and all of it. I just already know the address has you in it.",
+      "createdAt": "2026-06-19T08:30:00.000Z"
+    },
+    "seed-letter-05": {
+      "authorId": "him",
+      "to": "her",
+      "category": "Encouragement",
+      "title": "Read this on a hard day",
+      "body": "You are not behind. You are not too much, and you are not too quiet. God didn't make a mistake when He made you, and He didn't make one when He put you in my life either. Breathe. Whatever it is, we take it together. I've got you.",
+      "createdAt": "2026-06-20T06:55:00.000Z"
+    },
+    "seed-letter-06": {
+      "authorId": "her",
+      "to": "him",
+      "category": "Just Because",
+      "title": "No reason, just you",
+      "body": "No occasion. I just woke up grateful that it's you. That's the whole letter.",
+      "createdAt": "2026-06-21T05:20:00.000Z"
+    }
+  },
+
+  "dreams": {
+    "seed-dream-01": {
+      "authorId": "him",
+      "category": "Marriage Dreams",
+      "emoji": "💍",
+      "title": "Ask you properly",
+      "note": "Not a hint, not a maybe. A real question, on one knee, with people crying in the background. And yes, I already asked your sister for your ring size. Act surprised.",
+      "createdAt": "2026-06-15T12:00:00.000Z"
+    },
+    "seed-dream-02": {
+      "authorId": "her",
+      "category": "Places to Visit",
+      "emoji": "✈️",
+      "title": "Cape Town, just us",
+      "note": "Table Mountain, an ocean too cold to actually swim in, and way too many photos. One tank of petrol and no plan.",
+      "createdAt": "2026-06-16T13:10:00.000Z"
+    },
+    "seed-dream-03": {
+      "authorId": "him",
+      "category": "Dream House",
+      "emoji": "🏡",
+      "title": "A kitchen big enough to dance in",
+      "note": "Neither of us can cook. I don't care. I want a kitchen we can dance in while the food quietly burns.",
+      "createdAt": "2026-06-17T15:25:00.000Z"
+    },
+    "seed-dream-04": {
+      "authorId": "him",
+      "category": "Future Goals",
+      "emoji": "🎓",
+      "title": "Graduate side by side",
+      "note": "Both of us, caps in the air, our families fighting over who gets the better photo. We finish what we started.",
+      "createdAt": "2026-06-18T17:45:00.000Z"
+    },
+    "seed-dream-05": {
+      "authorId": "her",
+      "category": "Date Ideas",
+      "emoji": "⛪",
+      "title": "Sunday service, then breakfast",
+      "note": "Church in the morning, then that breakfast place, then doing absolutely nothing for the rest of the day. My perfect Sunday.",
+      "createdAt": "2026-06-19T18:00:00.000Z"
+    },
+    "seed-dream-06": {
+      "authorId": "him",
+      "category": "Bucket List",
+      "emoji": "🌅",
+      "title": "Sunrise from God's Window",
+      "note": "Wake up before the sun, drive up, and watch the whole lowveld light up from God's Window. Cold hands, one blanket, zero complaints.",
+      "createdAt": "2026-06-20T19:30:00.000Z"
+    }
+  },
+
+  "memories": {
+    "seed-mem-01": {
+      "authorId": "him",
+      "date": "2024-02-01",
+      "emoji": "🌱",
+      "title": "Where it all began",
+      "description": "We started as friends back in February 2024. I had no idea yet that the girl I kept finding excuses to talk to was going to become my whole heart.",
+      "mediaIds": [],
+      "mediaUrls": [],
+      "createdAt": "2024-02-01T20:00:00.000Z"
+    },
+    "seed-mem-02": {
+      "authorId": "him",
+      "date": "2024-09-15",
+      "emoji": "💬",
+      "title": "The call that went till 3am",
+      "description": "First time we talked until the sun nearly came up. I was wrecked the next day and didn't care even a little.",
+      "mediaIds": [],
+      "mediaUrls": [],
+      "createdAt": "2024-09-15T23:50:00.000Z"
+    },
+    "seed-mem-03": {
+      "authorId": "him",
+      "date": "2026-05-08",
+      "emoji": "💗",
+      "title": "The day we made it official",
+      "description": "8 May 2026. The day you said yes to being mine. Best yes I have ever heard in my life. Everything in this app counts from this day forward.",
+      "mediaIds": [],
+      "mediaUrls": [],
+      "createdAt": "2026-05-08T18:00:00.000Z"
+    },
+    "seed-mem-04": {
+      "authorId": "her",
+      "date": "2026-05-23",
+      "emoji": "😂",
+      "title": "The chair incident",
+      "description": "You were trying so hard to be smooth and the chair just... left. I have never laughed that hard. I'm still not over it.",
+      "mediaIds": [],
+      "mediaUrls": [],
+      "createdAt": "2026-05-23T16:30:00.000Z"
+    },
+    "seed-mem-05": {
+      "authorId": "him",
+      "date": "2026-06-08",
+      "emoji": "🙏",
+      "title": "Praying together for the first time",
+      "description": "The first time we prayed together, it stopped feeling like just us. It felt like us and God in the same room. I want a whole lifetime of that.",
+      "mediaIds": [],
+      "mediaUrls": [],
+      "createdAt": "2026-06-08T19:15:00.000Z"
+    },
+    "seed-mem-06": {
+      "authorId": "him",
+      "date": "2026-06-21",
+      "emoji": "📖",
+      "title": "The day Our Story went live",
+      "description": "I finally finished building this and put real love inside it. Hi from the day it all became real, Ayanda. Keep scrolling — there's so much more in here for you.",
+      "mediaIds": [],
+      "mediaUrls": [],
+      "createdAt": "2026-06-21T10:00:00.000Z"
+    }
+  },
+
+  "messages": {
+    "seed-msg-01": {
+      "text": "Welcome to Our Story, my love. 💗 I built this so you'd always have somewhere to feel how loved you are.",
+      "senderId": "him",
+      "senderName": "Phathu",
+      "read": false,
+      "_timestamp": "2026-06-21T18:00:00.000Z"
+    },
+    "seed-msg-02": {
+      "text": "Everything in here is real — the letters, the dreams, all of it. Open them whenever you miss me.",
+      "senderId": "him",
+      "senderName": "Phathu",
+      "read": false,
+      "_timestamp": "2026-06-21T18:01:00.000Z"
+    },
+    "seed-msg-03": {
+      "text": "Happy forever, Ayanda. 8 May 2026 was the best yes I ever heard. 🤍",
+      "senderId": "him",
+      "senderName": "Phathu",
+      "read": false,
+      "_timestamp": "2026-06-21T18:02:00.000Z"
+    }
+  }
+}

@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Our Story</string>
+    <string name="title_activity_main">Our Story</string>
+    <string name="package_name">com.ourstory.app</string>
+    <string name="custom_url_scheme">com.ourstory.app</string>
+</resources>

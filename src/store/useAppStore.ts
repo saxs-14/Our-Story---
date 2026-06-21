@@ -13,6 +13,7 @@ interface AppState {
   soundOn: boolean;
   hapticsOn: boolean;
   ambientOn: boolean;
+  notificationsOn: boolean;
   musicVolume: number; // 0..1
   introSeen: boolean;
   lastVisit: string | null;
@@ -24,6 +25,7 @@ interface AppState {
   setSound: (v: boolean) => void;
   setHaptics: (v: boolean) => void;
   setAmbient: (v: boolean) => void;
+  setNotifications: (v: boolean) => void;
   setMusicVolume: (v: number) => void;
   markIntroSeen: () => void;
   touchVisit: () => void;
@@ -38,6 +40,7 @@ export const useAppStore = create<AppState>()(
       soundOn: false,
       hapticsOn: true,
       ambientOn: true,
+      notificationsOn: true,
       musicVolume: 0.5,
       introSeen: false,
       lastVisit: null,
@@ -52,6 +55,7 @@ export const useAppStore = create<AppState>()(
         set({ hapticsOn });
       },
       setAmbient: (ambientOn) => set({ ambientOn }),
+      setNotifications: (notificationsOn) => set({ notificationsOn }),
       setMusicVolume: (musicVolume) => set({ musicVolume }),
       markIntroSeen: () => set({ introSeen: true }),
       touchVisit: () => set({ lastVisit: new Date().toISOString() }),

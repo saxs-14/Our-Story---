@@ -95,6 +95,10 @@ export default function Settings() {
         <Row label="Ambient particles" hint="Floating petals in the background">
           <Toggle checked={app.ambientOn} onChange={app.setAmbient} label="Ambient particles" />
         </Row>
+        <div className="hairline" />
+        <Row label="Message notifications" hint="Alert me when they send a chat (while the app is open)">
+          <Toggle checked={app.notificationsOn} onChange={app.setNotifications} label="Message notifications" />
+        </Row>
       </GlassCard>
 
       <h2 className="mb-2 mt-6 px-1 font-display text-xl text-[color:var(--ink-strong)]">Our dates</h2>

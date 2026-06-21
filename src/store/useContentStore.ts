@@ -83,7 +83,7 @@ interface ContentState {
   addDream: (d: Omit<UserDream, 'id' | 'createdAt'>) => void;
   deleteDream: (id: string) => void;
 
-  addMemory: (m: Omit<UserMemory, 'id' | 'createdAt'>) => void;
+  addMemory: (m: Omit<UserMemory, 'id' | 'createdAt' | 'mediaUrls'>) => void;
   deleteMemory: (id: string) => void;
 
   addGalleryItem: (g: Omit<GalleryItem, 'id' | 'createdAt'>) => void;

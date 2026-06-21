@@ -17,6 +17,7 @@ import { LoginGate } from '@/components/auth/LoginGate';
 import { AchievementWatcher } from '@/components/system/AchievementWatcher';
 import { CelebrationMode } from '@/components/system/CelebrationMode';
 import { MusicPlayer } from '@/components/system/MusicPlayer';
+import { ChatNotifier } from '@/components/system/ChatNotifier';
 import { HeartFilledIcon } from '@/components/icons';
 
 const Home = lazy(() => import('@/pages/Home'));
@@ -111,6 +112,7 @@ export default function App() {
           <ScrollToTop />
           <AchievementWatcher />
           <CelebrationMode />
+          <ChatNotifier />
           <MusicPlayer />
 
           <Suspense fallback={<Loader />}>

@@ -380,7 +380,6 @@ export default function Garden() {
   const water = useProgressStore((s) => s.waterGarden);
   const waterCount = useProgressStore((s) => s.gardenWaterCount);
   const playSound = useSound();
-  const reduce = useReducedMotion();
   const [night, setNight] = useState(() => { const h = new Date().getHours(); return h < 6 || h >= 19; });
   const [found, setFound] = useState(false);
 
