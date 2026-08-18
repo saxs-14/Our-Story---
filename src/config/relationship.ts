@@ -42,10 +42,10 @@ export interface RelationshipConfig {
 
 export const relationship: RelationshipConfig = {
   her: {
-    name: 'Ayanda Silinda',
-    nickname: 'Ayanda',
-    initial: 'A',
-    birthday: '2005-03-04',
+    name: 'Lihle Nzimande',
+    nickname: 'Lihle',
+    initial: 'L',
+    birthday: '2005-08-06',
     pronoun: 'she',
   },
   him: {
@@ -55,9 +55,9 @@ export const relationship: RelationshipConfig = {
     birthday: '2005-06-14',
     pronoun: 'he',
   },
-  // "Approximately February 2024" — anchored to the 1st for the counters.
+  // Friendship history retained from the original story configuration.
   friendshipStart: '2024-02-01',
-  relationshipStart: '2026-05-08',
+  relationshipStart: '2026-08-11',
   origin: {
     place: 'Mbombela, Mpumalanga, South Africa',
     lat: -25.4653,
@@ -67,13 +67,13 @@ export const relationship: RelationshipConfig = {
   signature: 'Always & in all ways,\nPhathu',
 };
 
-/** "P ❤️ A" — the monogram living inside the crystal heart. */
+/** "P ❤️ L" — the monogram living inside the crystal heart. */
 export const monogram = `${relationship.him.initial} ❤️ ${relationship.her.initial}`;
 
-/** "Ayanda ❤️ Phathutshedzo" — intro order (her first). */
+/** "Lihle ❤️ Phathu" — intro order (her first). */
 export const introNames = `${relationship.her.nickname} ❤️ ${relationship.him.nickname}`;
 
-/** "Phathutshedzo Mamagau ❤️ Ayanda Silinda" — formal full pairing. */
+/** "Phathutshedzo Mamagau ❤️ Lihle Nzimande" — formal full pairing. */
 export const fullPairing = `${relationship.him.name} ❤️ ${relationship.her.name}`;
 
 export default relationship;
