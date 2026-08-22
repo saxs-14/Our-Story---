@@ -59,12 +59,22 @@ export default function Settings() {
 
   const [pushState, setPushState] = useState<'checking' | 'off' | 'granted' | 'denied' | 'unsupported'>('checking');
   useEffect(() => {
-    isPushSupported().then((supported) => {
+    isPushSupported().then(async (supported) => {
       if (!supported) return setPushState('unsupported');
       const perm = currentNotificationPermission();
-      setPushState(perm === 'granted' ? 'granted' : perm === 'denied' ? 'denied' : 'off');
+      if (perm === 'granted' && userId) {
+        // Permission was already granted (e.g. a prior session) but that
+        // doesn't mean a token was ever registered/saved — getToken() is a
+        // silent no-op prompt-wise when permission is already granted, so
+        // it's safe to just re-run this every time to keep the token fresh.
+        const result = await enablePushNotifications(userId);
+        setPushState(result);
+      } else {
+        setPushState(perm === 'denied' ? 'denied' : 'off');
+      }
     });
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId]);
 
   const handleEnablePush = async () => {
     if (!userId) return;

@@ -193,8 +193,14 @@ export function RoseAnimation({ stage }: RoseAnimationProps) {
                 {[0, 60, 120, 180, 240, 300].map((angle, i) => {
                   const j = OUTER_JITTER[i];
                   const rot = angle + j.tilt;
+                  // translateZ must come FIRST: applied after rotate/rotateX it would
+                  // translate along an axis already tilted by up to ~300° + 75°, sending
+                  // petals in near-arbitrary screen directions instead of true depth —
+                  // that's what was collapsing the whole bloom into a clumped ball.
+                  // Depth-shift first (true Z, pre-rotation), then rotate that shifted
+                  // point into its position on the flower — petals stay correctly fanned.
                   const xf = (rx: number, sc: number, ty: number) =>
-                    `rotate(${rot}deg) rotateY(${j.rotateY}deg) rotateX(${rx}deg) translateZ(${j.z}px) translateY(${ty}px) scale(${(sc * j.scale).toFixed(3)})`;
+                    `translateZ(${j.z}px) rotate(${rot}deg) rotateY(${j.rotateY}deg) rotateX(${rx}deg) translateY(${ty}px) scale(${(sc * j.scale).toFixed(3)})`;
                   return (
                     <motion.div
                       key={`outer-${i}`}
@@ -236,8 +242,14 @@ export function RoseAnimation({ stage }: RoseAnimationProps) {
                 {[30, 90, 150, 210, 270, 330].map((angle, i) => {
                   const j = MID_JITTER[i];
                   const rot = angle + j.tilt;
+                  // translateZ must come FIRST: applied after rotate/rotateX it would
+                  // translate along an axis already tilted by up to ~300° + 75°, sending
+                  // petals in near-arbitrary screen directions instead of true depth —
+                  // that's what was collapsing the whole bloom into a clumped ball.
+                  // Depth-shift first (true Z, pre-rotation), then rotate that shifted
+                  // point into its position on the flower — petals stay correctly fanned.
                   const xf = (rx: number, sc: number, ty: number) =>
-                    `rotate(${rot}deg) rotateY(${j.rotateY}deg) rotateX(${rx}deg) translateZ(${j.z}px) translateY(${ty}px) scale(${(sc * j.scale).toFixed(3)})`;
+                    `translateZ(${j.z}px) rotate(${rot}deg) rotateY(${j.rotateY}deg) rotateX(${rx}deg) translateY(${ty}px) scale(${(sc * j.scale).toFixed(3)})`;
                   return (
                     <motion.div
                       key={`mid-${i}`}
@@ -271,7 +283,7 @@ export function RoseAnimation({ stage }: RoseAnimationProps) {
                   const j = INNER_JITTER[i];
                   const rot = angle + j.tilt;
                   const xf = (rx: number, sc: number) =>
-                    `rotate(${rot}deg) rotateY(${j.rotateY}deg) rotateX(${rx}deg) translateZ(${j.z}px) scale(${(sc * j.scale).toFixed(3)})`;
+                    `translateZ(${j.z}px) rotate(${rot}deg) rotateY(${j.rotateY}deg) rotateX(${rx}deg) scale(${(sc * j.scale).toFixed(3)})`;
                   return (
                     <motion.div
                       key={`inner-${i}`}

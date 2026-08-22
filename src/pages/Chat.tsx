@@ -9,7 +9,7 @@ import { useCallStore } from '@/store/useCallStore';
 import { usePresenceStore } from '@/store/usePresenceStore';
 import { useContentStore, getUploadPath } from '@/store/useContentStore';
 import { useMediaUrl } from '@/hooks/useMediaUrl';
-import { saveMedia } from '@/lib/idb';
+import { saveMedia, getMedia } from '@/lib/idb';
 import { CloseIcon, ChevronLeftIcon } from '@/components/icons';
 import { haptic } from '@/lib/haptics';
 import { cn } from '@/lib/cn';
@@ -448,6 +448,34 @@ export default function Chat() {
   // gap before the upload finishes, or when Firebase isn't configured.
   const customImageUrl = customImageCloudUrl || customImageLocalUrl;
   const customVideoUrl = customVideoCloudUrl || customVideoLocalUrl;
+
+  const setChatCustomImage = useAppStore((s) => s.setChatCustomImage);
+  const setChatCustomVideo = useAppStore((s) => s.setChatCustomVideo);
+  const uploadMedia = useContentStore((s) => s.uploadMedia);
+
+  // The wallpaper picker applies locally and closes instantly, uploading to
+  // Storage in the background — if the tab closed/reloaded before that
+  // upload finished, the cloud URL never got saved (stuck local-only forever,
+  // invisible to the other partner). Retry it once on mount from the cached
+  // IndexedDB blob whenever we have a mediaId but no cloud URL yet.
+  useEffect(() => {
+    if (!userId) return;
+    const retry = async (
+      mediaId: string | null,
+      cloudUrl: string | null,
+      apply: (id: string, url: string) => void,
+    ) => {
+      if (!mediaId || cloudUrl) return;
+      const rec = await getMedia(mediaId);
+      if (!rec) return;
+      const file = new File([rec.blob], rec.name, { type: rec.type });
+      const url = await uploadMedia(file, getUploadPath(userId, rec.name));
+      if (url) apply(mediaId, url);
+    };
+    void retry(customImageMediaId, customImageCloudUrl, setChatCustomImage);
+    void retry(customVideoMediaId, customVideoCloudUrl, setChatCustomVideo);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId]);
 
   const startCall = useCallStore((s) => s.startCall);
   const partnerOnline = usePresenceStore((s) => s.partnerOnline);
