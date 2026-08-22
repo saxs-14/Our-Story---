@@ -81,13 +81,13 @@ export const PLAYLISTS = {
   },
   makhadzi: {
     name: '👑 Makhadzi Hits',
-    embedUrl: 'https://open.spotify.com/embed/artist/5c4M6h5e0N1c5eW7g8b9gN?utm_source=generator&theme=0',
-    openUrl: 'https://open.spotify.com/artist/5c4M6h5e0N1c5eW7g8b9gN',
+    embedUrl: 'https://open.spotify.com/embed/playlist/37i9dQZF1EIZ7sbOne8v7k?utm_source=generator&theme=0',
+    openUrl: 'https://open.spotify.com/playlist/37i9dQZF1EIZ7sbOne8v7k',
   },
   amapiano: {
     name: '🎹 Top Amapiano Grooves',
-    embedUrl: 'https://open.spotify.com/embed/playlist/37i9dQZF1DX5cZuTNLX4Ac?utm_source=generator&theme=0',
-    openUrl: 'https://open.spotify.com/playlist/37i9dQZF1DX5cZuTNLX4Ac',
+    embedUrl: 'https://open.spotify.com/embed/playlist/37i9dQZF1DX5mILnBJLA26?utm_source=generator&theme=0',
+    openUrl: 'https://open.spotify.com/playlist/37i9dQZF1DX5mILnBJLA26',
   },
   rnbLove: {
     name: '🍷 R&B & Love Favourites',
