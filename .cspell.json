@@ -1,0 +1,33 @@
+{
+  "version": "0.2",
+  "language": "en",
+  "words": [
+    "Amapiano",
+    "AMOLED",
+    "Audi",
+    "Biturbo",
+    "Customizer",
+    "favorited",
+    "Firestore",
+    "Haptic",
+    "Haptics",
+    "Lihle",
+    "Makhadzi",
+    "Mamagau",
+    "Mbombela",
+    "Mpumalanga",
+    "Nzimande",
+    "Phathu",
+    "Phathutshedzo",
+    "rosegold",
+    "RSQ8",
+    "Saxs",
+    "Snowpie",
+    "Sportback",
+    "Supercar",
+    "warmwhite",
+    "webrtc",
+    "Zustand"
+  ],
+  "ignorePaths": ["node_modules/**", "dist/**", ".git/**"]
+}
