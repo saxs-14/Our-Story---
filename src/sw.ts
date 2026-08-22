@@ -62,16 +62,56 @@ if (firebaseConfig.apiKey && firebaseConfig.projectId) {
   const messaging = getMessaging(app);
 
   onBackgroundMessage(messaging, (payload) => {
-    const title = payload.notification?.title ?? 'Our Story';
-    const body = payload.notification?.body ?? '';
+    const title = payload.notification?.title || (payload.data?.title as string) || 'Our Story ❤️';
+    const body = payload.notification?.body || (payload.data?.body as string) || 'New message from your partner';
     void self.registration.showNotification(title, {
       body,
       icon: '/icons/icon-192.png',
       badge: '/icons/icon-192.png',
-      data: payload.data,
-    });
+      vibrate: [200, 100, 200],
+      tag: 'our-story-bg',
+      renotify: true,
+      data: payload.data || { url: '/chat' },
+    } as NotificationOptions & { vibrate?: number[] });
   });
 }
+
+// Fallback push event handler for raw Web Push / background dispatch
+self.addEventListener('push', (event) => {
+  if (!event.data) return;
+  try {
+    const data = event.data.json();
+    const title = data.notification?.title || data.title || 'Our Story ❤️';
+    const body = data.notification?.body || data.body || 'New message from your partner';
+    const url = data.data?.url || data.url || '/chat';
+    event.waitUntil(
+      self.registration.showNotification(title, {
+        body,
+        icon: '/icons/icon-192.png',
+        badge: '/icons/icon-192.png',
+        vibrate: [200, 100, 200],
+        tag: 'our-story-push',
+        renotify: true,
+        data: { url },
+      } as NotificationOptions & { vibrate?: number[] }),
+    );
+  } catch {
+    const text = event.data.text();
+    if (text) {
+      event.waitUntil(
+        self.registration.showNotification('Our Story ❤️', {
+          body: text,
+          icon: '/icons/icon-192.png',
+          badge: '/icons/icon-192.png',
+          vibrate: [200, 100, 200],
+          tag: 'our-story-push',
+          renotify: true,
+          data: { url: '/chat' },
+        } as NotificationOptions & { vibrate?: number[] }),
+      );
+    }
+  }
+});
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();

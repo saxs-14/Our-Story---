@@ -52,6 +52,26 @@ export const useCallStore = create<CallStore>((set, get) => {
       clearInterval(timerInterval);
       timerInterval = null;
     }
+    const currentLocal = get().localStream;
+    if (currentLocal) {
+      currentLocal.getTracks().forEach((t) => {
+        try {
+          t.stop();
+        } catch {
+          /* ignore */
+        }
+      });
+    }
+    const currentRemote = get().remoteStream;
+    if (currentRemote) {
+      currentRemote.getTracks().forEach((t) => {
+        try {
+          t.stop();
+        } catch {
+          /* ignore */
+        }
+      });
+    }
     set({
       callState: 'idle',
       callId: null,

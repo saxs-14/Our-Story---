@@ -53,6 +53,18 @@ export class WebRTCService {
 
   /** Initialize local audio / video stream */
   public async getLocalStream(type: 'voice' | 'video'): Promise<MediaStream> {
+    // If a previous stream is still open, ensure all hardware tracks are stopped first
+    if (this.localStream) {
+      this.localStream.getTracks().forEach((t) => {
+        try {
+          t.stop();
+        } catch {
+          /* ignore */
+        }
+      });
+      this.localStream = null;
+    }
+
     try {
       const constraints: MediaStreamConstraints = {
         audio: {
@@ -319,7 +331,7 @@ export class WebRTCService {
     return this.pc;
   }
 
-  private cleanup(): void {
+  public cleanup(): void {
     if (this.callUnsub) {
       this.callUnsub();
       this.callUnsub = null;
@@ -329,14 +341,42 @@ export class WebRTCService {
       this.candidateUnsub = null;
     }
     if (this.localStream) {
-      this.localStream.getTracks().forEach((t) => t.stop());
+      this.localStream.getTracks().forEach((t) => {
+        try {
+          t.stop();
+        } catch {
+          /* ignore */
+        }
+      });
       this.localStream = null;
     }
+    if (this.remoteStream) {
+      this.remoteStream.getTracks().forEach((t) => {
+        try {
+          t.stop();
+        } catch {
+          /* ignore */
+        }
+      });
+      this.remoteStream = null;
+    }
     if (this.pc) {
-      this.pc.close();
+      try {
+        this.pc.getSenders().forEach((s) => {
+          if (s.track) {
+            try {
+              s.track.stop();
+            } catch {
+              /* ignore */
+            }
+          }
+        });
+        this.pc.close();
+      } catch {
+        /* ignore */
+      }
       this.pc = null;
     }
-    this.remoteStream = null;
     this.callDocId = null;
   }
 }

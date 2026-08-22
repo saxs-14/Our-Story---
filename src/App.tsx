@@ -92,6 +92,16 @@ export default function App() {
   useEffect(() => {
     if (!userId) return;
     usePresenceStore.getState().start(userId, partnerOf(userId));
+
+    // Keep background push token fresh for locked screen / background notifications
+    import('@/lib/push').then(({ isPushSupported, currentNotificationPermission, enablePushNotifications }) => {
+      void isPushSupported().then((supported) => {
+        if (supported && currentNotificationPermission() === 'granted') {
+          void enablePushNotifications(userId);
+        }
+      });
+    });
+
     return () => usePresenceStore.getState().stop();
   }, [userId]);
 

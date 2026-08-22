@@ -52,17 +52,25 @@ export function CallModal() {
 
   // Attach local stream to video element
   useEffect(() => {
-    if (localVideoRef.current && localStream) {
+    if (localVideoRef.current) {
       localVideoRef.current.srcObject = localStream;
     }
   }, [localStream, callState]);
 
   // Attach remote stream to video element
   useEffect(() => {
-    if (remoteVideoRef.current && remoteStream) {
+    if (remoteVideoRef.current) {
       remoteVideoRef.current.srcObject = remoteStream;
     }
   }, [remoteStream, callState]);
+
+  // Cleanup video references when unmounting or returning to idle
+  useEffect(() => {
+    if (callState === 'idle') {
+      if (localVideoRef.current) localVideoRef.current.srcObject = null;
+      if (remoteVideoRef.current) remoteVideoRef.current.srcObject = null;
+    }
+  }, [callState]);
 
   // Sound effects for ringing
   useEffect(() => {
