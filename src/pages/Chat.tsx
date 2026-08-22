@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { PageShell } from '@/components/layout/PageShell';
 import { useChatStore } from '@/store/useChatStore';
@@ -9,7 +10,7 @@ import { usePresenceStore } from '@/store/usePresenceStore';
 import { useContentStore, getUploadPath } from '@/store/useContentStore';
 import { useMediaUrl } from '@/hooks/useMediaUrl';
 import { saveMedia } from '@/lib/idb';
-import { CloseIcon } from '@/components/icons';
+import { CloseIcon, ChevronLeftIcon } from '@/components/icons';
 import { haptic } from '@/lib/haptics';
 import { cn } from '@/lib/cn';
 import { useSound } from '@/hooks/useSound';
@@ -163,8 +164,6 @@ function WallpaperModal({ onClose }: { onClose: () => void }) {
   const setChatCustomVideo = useAppStore((s) => s.setChatCustomVideo);
   const uploadMedia = useContentStore((s) => s.uploadMedia);
   const [videoInput, setVideoInput] = useState('');
-  const [uploadingImage, setUploadingImage] = useState(false);
-  const [uploadingVideo, setUploadingVideo] = useState(false);
 
   const PRESETS: { type: ChatWallpaperType; label: string; preview: string }[] = [
     { type: 'doodle', label: 'WhatsApp Doodle', preview: 'bg-[#0b141a]' },
@@ -218,8 +217,9 @@ function WallpaperModal({ onClose }: { onClose: () => void }) {
             <button
               key={p.type}
               onClick={() => {
-                haptic('tap');
+                haptic('success');
                 setChatWallpaper(p.type);
+                onClose();
               }}
               className={cn(
                 'tap flex flex-col items-center gap-2 rounded-2xl border p-3 text-xs transition-all',
@@ -245,34 +245,27 @@ function WallpaperModal({ onClose }: { onClose: () => void }) {
             accept="image/*"
             id="chat-bg-file"
             className="hidden"
-            disabled={uploadingImage}
             onChange={async (e) => {
               const file = e.target.files?.[0];
               e.target.value = '';
               if (!file || !userId) return;
-              setUploadingImage(true);
-              haptic('tap');
-              try {
-                // Save locally first (IndexedDB) so the wallpaper shows instantly
-                // and survives reload even before the cloud upload finishes.
-                const record = await saveMedia(file, file.name);
-                setChatCustomImage(record.id, null);
-                const url = await uploadMedia(file, getUploadPath(userId, file.name));
+              // Save locally first (IndexedDB) so the wallpaper shows instantly
+              // and survives reload even before the cloud upload finishes —
+              // then close right away; the cloud upload finishes in the background.
+              const record = await saveMedia(file, file.name);
+              setChatCustomImage(record.id, null);
+              haptic('success');
+              onClose();
+              void uploadMedia(file, getUploadPath(userId, file.name)).then((url) => {
                 if (url) setChatCustomImage(record.id, url);
-                haptic('success');
-              } finally {
-                setUploadingImage(false);
-              }
+              });
             }}
           />
           <label
             htmlFor="chat-bg-file"
-            className={cn(
-              'tap flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl border border-dashed border-rosegold-400/40 bg-rosegold-500/10 p-3 text-xs text-warmwhite hover:bg-rosegold-500/20',
-              uploadingImage && 'pointer-events-none opacity-60',
-            )}
+            className="tap flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl border border-dashed border-rosegold-400/40 bg-rosegold-500/10 p-3 text-xs text-warmwhite hover:bg-rosegold-500/20"
           >
-            {uploadingImage ? 'Uploading…' : '📷 Upload Image as Chat Background'}
+            📷 Upload Image as Chat Background
           </label>
         </div>
 
@@ -286,32 +279,24 @@ function WallpaperModal({ onClose }: { onClose: () => void }) {
             accept="video/*"
             id="chat-bg-video-file"
             className="hidden"
-            disabled={uploadingVideo}
             onChange={async (e) => {
               const file = e.target.files?.[0];
               e.target.value = '';
               if (!file || !userId) return;
-              setUploadingVideo(true);
-              haptic('tap');
-              try {
-                const record = await saveMedia(file, file.name);
-                setChatCustomVideo(record.id, null);
-                const url = await uploadMedia(file, getUploadPath(userId, file.name));
+              const record = await saveMedia(file, file.name);
+              setChatCustomVideo(record.id, null);
+              haptic('success');
+              onClose();
+              void uploadMedia(file, getUploadPath(userId, file.name)).then((url) => {
                 if (url) setChatCustomVideo(record.id, url);
-                haptic('success');
-              } finally {
-                setUploadingVideo(false);
-              }
+              });
             }}
           />
           <label
             htmlFor="chat-bg-video-file"
-            className={cn(
-              'tap flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl border border-dashed border-rosegold-400/40 bg-rosegold-500/10 p-3 text-xs text-warmwhite hover:bg-rosegold-500/20',
-              uploadingVideo && 'pointer-events-none opacity-60',
-            )}
+            className="tap flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl border border-dashed border-rosegold-400/40 bg-rosegold-500/10 p-3 text-xs text-warmwhite hover:bg-rosegold-500/20"
           >
-            {uploadingVideo ? 'Uploading…' : '🎬 Upload Video as Chat Background'}
+            🎬 Upload Video as Chat Background
           </label>
         </div>
 
@@ -330,6 +315,7 @@ function WallpaperModal({ onClose }: { onClose: () => void }) {
                 haptic('success');
                 setChatCustomVideo(null, videoInput.trim());
                 setVideoInput('');
+                onClose();
               }
             }}
             className="tap shrink-0 whitespace-nowrap rounded-2xl bg-rosegold-500 px-3 py-2 text-xs font-semibold text-warmwhite"
@@ -436,6 +422,7 @@ function DayDivider({ label }: { label: string }) {
 }
 
 export default function Chat() {
+  const navigate = useNavigate();
   const userId = useAuthStore((s) => s.userId);
   const {
     messages,
@@ -523,6 +510,17 @@ export default function Chat() {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages.length, userId, markRead]);
 
+  // Lock pinch/double-tap zoom while in the chat — restore the normal
+  // zoomable viewport everywhere else when leaving.
+  useEffect(() => {
+    const meta = document.querySelector('meta[name="viewport"]');
+    const original = meta?.getAttribute('content') ?? null;
+    meta?.setAttribute('content', 'width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no');
+    return () => {
+      if (original !== null) meta?.setAttribute('content', original);
+    };
+  }, []);
+
   const handleTextChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setText(e.target.value);
     if (!userId) return;
@@ -608,8 +606,8 @@ export default function Chat() {
   };
 
   return (
-    <PageShell bleed>
-      <div className="relative flex h-[100dvh] flex-col overflow-hidden">
+    <PageShell bleed fixed>
+      <div className="relative flex h-full flex-col overflow-hidden overscroll-none [touch-action:pan-y]">
         {/* ── CHAT WALLPAPERS ────────────────────────────────────────── */}
         {chatWallpaper === 'doodle' && (
           <div
@@ -647,8 +645,21 @@ export default function Chat() {
         )}
 
         {/* ── WHATSAPP APP BAR HEADER ───────────────────────────────── */}
-        <div className="relative z-30 flex items-center justify-between border-b border-white/10 bg-[#1f2c34]/90 px-4 py-2.5 text-warmwhite shadow-md backdrop-blur-xl">
-          <div className="flex items-center gap-3">
+        <div className="relative z-30 flex shrink-0 items-center justify-between border-b border-white/10 bg-[#1f2c34]/90 px-4 pb-2.5 pt-[calc(env(safe-area-inset-top)+0.625rem)] text-warmwhite shadow-md backdrop-blur-xl">
+          <div className="flex items-center gap-2">
+            {/* Back to Home */}
+            <button
+              type="button"
+              aria-label="Back to Home"
+              onClick={() => {
+                haptic('tap');
+                navigate('/');
+              }}
+              className="tap -ml-1.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-warmwhite hover:bg-white/10"
+            >
+              <ChevronLeftIcon width={22} height={22} />
+            </button>
+
             {/* Avatar with live online beacon */}
             <div className="relative h-10 w-10 overflow-hidden rounded-full ring-2 ring-emerald-500/60 shadow-md">
               {partnerAvatarUrl ? (
@@ -717,7 +728,7 @@ export default function Chat() {
         </div>
 
         {/* ── CHAT MESSAGES SCROLL VIEW ─────────────────────────────── */}
-        <div className="flex-1 overflow-y-auto px-4 py-4 [scrollbar-width:none]">
+        <div className="flex-1 overflow-y-auto overscroll-contain px-4 py-4 [scrollbar-width:none] [touch-action:pan-y]">
           {messages.map((m, i) => {
             const isMe = m.senderId === userId;
             const prev = messages[i - 1];
@@ -842,7 +853,7 @@ export default function Chat() {
         )}
 
         {/* ── BOTTOM DOCK: WHATSAPP INPUT & VOICE RECORDER ─────────── */}
-        <div className="relative z-30 bg-[#202c33] px-3 py-2 pb-[calc(env(safe-area-inset-bottom)+5.4rem)]">
+        <div className="relative z-30 shrink-0 bg-[#202c33] px-3 py-2 pb-[calc(env(safe-area-inset-bottom)+0.5rem)]">
           {isRecording ? (
             /* Live Voice Note Recorder Bar */
             <div className="flex items-center justify-between rounded-full bg-[#111b21] px-4 py-2 text-warmwhite shadow-inner">

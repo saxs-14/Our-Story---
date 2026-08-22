@@ -11,14 +11,27 @@ interface PageShellProps {
   /** Remove the default max-width container (e.g. full-bleed Garden/Wrapped). */
   bleed?: boolean;
   className?: string;
+  /**
+   * True fixed-viewport mode (Chat): exactly 100dvh with no page-level
+   * padding/scroll of its own. Without this, the default top safe-area
+   * padding this component always adds made bleed pages taller than the
+   * viewport, so the whole page (header, wallpaper) could rubber-band
+   * scroll on mobile — the page must manage its own safe-area insets and
+   * internal scroll region instead, WhatsApp-style.
+   */
+  fixed?: boolean;
 }
 
 /** Standard page frame: safe-area header, gentle enter transition, nav padding. */
-export function PageShell({ eyebrow, title, subtitle, children, bleed, className }: PageShellProps) {
+export function PageShell({ eyebrow, title, subtitle, children, bleed, className, fixed }: PageShellProps) {
   const reduce = useReducedMotion();
   return (
     <motion.main
-      className={cn('relative min-h-dvh w-full pb-nav pt-[calc(env(safe-area-inset-top)+1.25rem)]', className)}
+      className={cn(
+        'relative w-full',
+        fixed ? 'h-[100dvh] overflow-hidden overscroll-none' : 'min-h-dvh pb-nav pt-[calc(env(safe-area-inset-top)+1.25rem)]',
+        className,
+      )}
       initial={{ opacity: 0, y: reduce ? 0 : 16 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: reduce ? 0 : -12 }}
@@ -26,7 +39,9 @@ export function PageShell({ eyebrow, title, subtitle, children, bleed, className
     >
       <div
         className={cn(
-          bleed
+          fixed
+            ? 'h-full w-full lg:mx-auto lg:max-w-3xl'
+            : bleed
             ? 'w-full lg:mx-auto lg:max-w-3xl'
             : 'mx-auto w-full max-w-2xl px-5 lg:max-w-3xl lg:px-8 xl:max-w-4xl',
         )}

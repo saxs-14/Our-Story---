@@ -149,7 +149,7 @@ export default function App() {
             </AnimatePresence>
           </Suspense>
 
-          <BottomNav />
+          {location.pathname !== '/chat' && <BottomNav />}
         </>
       )}
     </>
