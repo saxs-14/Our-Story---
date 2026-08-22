@@ -44,7 +44,6 @@ export default function Home({ onReplayIntro }: { onReplayIntro?: () => void }) 
   const { weather: live } = useLiveWeather();
 
   const duration = elapsedSince(relationship.relationshipStart, now);
-  const friendDuration = elapsedSince(relationship.friendshipStart, now);
 
   const [weatherSeed, setWeatherSeed] = useState(0);
   const weather: LoveWeather = useMemo(
@@ -130,8 +129,7 @@ export default function Home({ onReplayIntro }: { onReplayIntro?: () => void }) 
         ))}
       </div>
       <p className="mt-3 text-center text-xs text-[color:var(--ink-soft)]">
-        …and {friendDuration.years > 0 ? `${friendDuration.years} year${friendDuration.years > 1 ? 's' : ''} & ` : ''}
-        {friendDuration.months} months of friendship before that 🌱
+        💘 Love at first sight for Phathu on {formatLongDate(relationship.firstSight)} · Official on {formatLongDate(relationship.relationshipStart)} ❤️
       </p>
 
       {/* Love weather */}
@@ -217,7 +215,7 @@ export default function Home({ onReplayIntro }: { onReplayIntro?: () => void }) 
           { to: '/vault', label: 'Open When…', desc: 'A letter for how you feel' },
           { to: '/wrapped', label: 'Our Wrapped', desc: 'Replay our story' },
           { to: '/garden', label: 'Our Garden', desc: 'Watch us grow' },
-          { to: '/reasons', label: '500 Reasons', desc: 'Why I love you' },
+          { to: '/dreams', label: 'Audi & Dreams', desc: 'Our shared vision 🚗' },
         ].map((q) => (
           <Link key={q.to} to={q.to} onClick={() => haptic('tap')}>
             <GlassCard className="flex h-full items-center justify-between p-4 transition-transform active:scale-95">
@@ -231,7 +229,8 @@ export default function Home({ onReplayIntro }: { onReplayIntro?: () => void }) 
         ))}
       </div>
 
-      {/* Faith & devotion — for Ayanda */}
+
+      {/* Faith & devotion — for Snowpie */}
       <GlassCard strong className="mt-4 p-5">
         <p className="text-xs font-medium uppercase tracking-luxe text-champagne-600">🙏 Faith & Love</p>
         <p className="mt-2 font-serif text-lg leading-relaxed text-[color:var(--ink-strong)]">
@@ -241,10 +240,11 @@ export default function Home({ onReplayIntro }: { onReplayIntro?: () => void }) 
         <div className="mt-3 flex items-center gap-2">
           <span className="text-lg">✝️</span>
           <p className="text-sm text-[color:var(--ink-soft)]">
-            Ayanda's faith is the anchor of her heart — and it makes her who she is. We keep God at the centre.
+            Snowpie's faith and warmth are the light of her heart. We keep God at the centre of our love story.
           </p>
         </div>
       </GlassCard>
+
 
       {/* A quiet doorway to the secret — for the curious heart that looks closely */}
       <div className="mt-10 flex flex-col items-center gap-1">

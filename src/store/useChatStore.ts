@@ -1,7 +1,7 @@
 /**
- * Real-time chat via Firebase Firestore.
- * Works offline (IndexedDB persistence) and syncs when online.
- * Falls back to local-only mode when Firebase is not configured.
+ * Real-time WhatsApp-style chat via Firebase Firestore.
+ * Works offline (IndexedDB persistence) and syncs seamlessly when online.
+ * Supports text, images, videos, voice notes, audio messages, typing indicators, and reactions.
  */
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
@@ -15,6 +15,7 @@ import {
   serverTimestamp,
   updateDoc,
   doc,
+  setDoc,
   Timestamp,
   type Unsubscribe,
 } from 'firebase/firestore';
@@ -26,6 +27,7 @@ import {
 } from 'firebase/storage';
 import { db, storage, FIREBASE_CONFIGURED } from '@/lib/firebase';
 import type { PersonId } from '@/store/useAuthStore';
+import { partnerOf } from '@/store/useAuthStore';
 
 export interface ChatMessage {
   id: string;
@@ -35,6 +37,8 @@ export interface ChatMessage {
   timestamp: number; // ms epoch
   mediaUrl?: string;
   mediaType?: 'image' | 'video' | 'audio';
+  audioDuration?: number; // seconds for voice notes
+  reactions?: Record<string, string>; // e.g. { 'her': '❤️', 'him': '🔥' }
   read: boolean;
   local?: boolean; // optimistic / unsent
 }
@@ -44,20 +48,34 @@ interface ChatState {
   unreadCount: number;
   uploading: boolean;
   uploadProgress: number;
+  partnerTyping: boolean;
 
-  /** Subscribe to Firestore — call once on app mount, unsubscribe on logout */
+  /** Subscribe to Firestore messages & typing indicators */
   subscribe: (currentUserId: PersonId) => Unsubscribe | null;
   /** Send a text message */
   sendMessage: (text: string, senderId: PersonId, senderName: string) => Promise<void>;
-  /** Upload media + send message */
-  sendMedia: (file: File, senderId: PersonId, senderName: string, caption?: string) => Promise<void>;
-  /** Mark all messages as read for this session */
+  /** Upload media (photo / video / voice note) + send message */
+  sendMedia: (
+    file: Blob | File,
+    senderId: PersonId,
+    senderName: string,
+    caption?: string,
+    audioDuration?: number,
+  ) => Promise<void>;
+  /** Add reaction to a message */
+  reactToMessage: (messageId: string, userId: PersonId, emoji: string) => Promise<void>;
+  /** Update typing status in Firestore */
+  setTyping: (userId: PersonId, isTyping: boolean) => void;
+  /** Mark all messages as read */
   markRead: (currentUserId: PersonId) => void;
   clearUnread: () => void;
 }
 
 const MESSAGES_COLLECTION = 'messages';
-const MESSAGES_LIMIT = 200;
+const TYPING_COLLECTION = 'typing';
+const MESSAGES_LIMIT = 250;
+
+let typingTimeout: number | null = null;
 
 export const useChatStore = create<ChatState>()(
   persist(
@@ -66,17 +84,21 @@ export const useChatStore = create<ChatState>()(
       unreadCount: 0,
       uploading: false,
       uploadProgress: 0,
+      partnerTyping: false,
 
       subscribe: (currentUserId) => {
         if (!FIREBASE_CONFIGURED || !db) return null;
 
+        const partnerId = partnerOf(currentUserId);
+
+        // 1. Message listener
         const q = query(
           collection(db, MESSAGES_COLLECTION),
           orderBy('timestamp', 'asc'),
           limit(MESSAGES_LIMIT),
         );
 
-        const unsub = onSnapshot(q, (snapshot) => {
+        const unsubMessages = onSnapshot(q, (snapshot) => {
           const msgs: ChatMessage[] = snapshot.docs.map((d) => {
             const data = d.data();
             const ts = data.timestamp as Timestamp | null;
@@ -88,20 +110,35 @@ export const useChatStore = create<ChatState>()(
               timestamp: ts ? ts.toMillis() : Date.now(),
               mediaUrl: data.mediaUrl,
               mediaType: data.mediaType,
+              audioDuration: data.audioDuration,
+              reactions: data.reactions ?? {},
               read: data.read ?? false,
             };
           });
 
           const prev = get().messages;
           const newFromPartner = msgs.filter(
-            (m) => m.senderId !== currentUserId && !m.read &&
+            (m) =>
+              m.senderId !== currentUserId &&
+              !m.read &&
               !prev.find((p) => p.id === m.id && p.read),
           );
 
           set({ messages: msgs, unreadCount: newFromPartner.length });
         });
 
-        return unsub;
+        // 2. Typing status listener
+        const typingDocRef = doc(db, TYPING_COLLECTION, partnerId);
+        const unsubTyping = onSnapshot(typingDocRef, (snap) => {
+          const data = snap.data();
+          const isTyping = data?.isTyping === true && Date.now() - (data?.updatedAt || 0) < 5000;
+          set({ partnerTyping: isTyping });
+        });
+
+        return () => {
+          unsubMessages();
+          unsubTyping();
+        };
       },
 
       sendMessage: async (text, senderId, senderName) => {
@@ -110,31 +147,41 @@ export const useChatStore = create<ChatState>()(
         // Optimistic update
         const tmpId = `local-${Date.now()}`;
         const optimistic: ChatMessage = {
-          id: tmpId, text, senderId, senderName,
-          timestamp: Date.now(), read: false, local: true,
+          id: tmpId,
+          text,
+          senderId,
+          senderName,
+          timestamp: Date.now(),
+          read: false,
+          local: true,
         };
         set((s) => ({ messages: [...s.messages, optimistic] }));
 
         if (FIREBASE_CONFIGURED && db) {
           try {
             await addDoc(collection(db, MESSAGES_COLLECTION), {
-              text, senderId, senderName, read: false, timestamp: serverTimestamp(),
+              text,
+              senderId,
+              senderName,
+              read: false,
+              timestamp: serverTimestamp(),
             });
-            // Firestore snapshot will replace the optimistic message
             set((s) => ({ messages: s.messages.filter((m) => m.id !== tmpId) }));
           } catch {
-            // Keep optimistic message marked as local (will retry when online)
+            // Keep optimistic message marked as local for offline retry
           }
         }
       },
 
-      sendMedia: async (file, senderId, senderName, caption = '') => {
+      sendMedia: async (file, senderId, senderName, caption = '', audioDuration) => {
         if (!FIREBASE_CONFIGURED || !storage || !db) return;
 
         set({ uploading: true, uploadProgress: 0 });
-        const path = `chat/${senderId}/${Date.now()}_${file.name}`;
-        const storageRef = ref(storage, path);
-        const task: UploadTask = uploadBytesResumable(storageRef, file);
+        const ext = file.type.includes('audio') ? 'webm' : file.type.includes('video') ? 'mp4' : 'jpg';
+        const filename = (file as File).name || `voice-note-${Date.now()}.${ext}`;
+        const path = `chat/${senderId}/${Date.now()}_${filename}`;
+        const sRef = ref(storage, path);
+        const task: UploadTask = uploadBytesResumable(sRef, file);
 
         await new Promise<void>((resolve, reject) => {
           task.on(
@@ -148,7 +195,7 @@ export const useChatStore = create<ChatState>()(
           );
         });
 
-        const mediaUrl = await getDownloadURL(storageRef);
+        const mediaUrl = await getDownloadURL(sRef);
         const mediaType: 'image' | 'video' | 'audio' = file.type.startsWith('image/')
           ? 'image'
           : file.type.startsWith('video/')
@@ -156,11 +203,58 @@ export const useChatStore = create<ChatState>()(
           : 'audio';
 
         await addDoc(collection(db, MESSAGES_COLLECTION), {
-          text: caption, senderId, senderName, mediaUrl, mediaType,
-          read: false, timestamp: serverTimestamp(),
+          text: caption,
+          senderId,
+          senderName,
+          mediaUrl,
+          mediaType,
+          audioDuration: audioDuration || null,
+          read: false,
+          timestamp: serverTimestamp(),
         });
 
         set({ uploading: false, uploadProgress: 0 });
+      },
+
+      reactToMessage: async (messageId, userId, emoji) => {
+        set((s) => ({
+          messages: s.messages.map((m) => {
+            if (m.id !== messageId) return m;
+            const reactions = { ...(m.reactions || {}) };
+            if (reactions[userId] === emoji) {
+              delete reactions[userId];
+            } else {
+              reactions[userId] = emoji;
+            }
+            return { ...m, reactions };
+          }),
+        }));
+
+        if (FIREBASE_CONFIGURED && db) {
+          const docRef = doc(db, MESSAGES_COLLECTION, messageId);
+          const currentMsg = get().messages.find((m) => m.id === messageId);
+          if (currentMsg) {
+            await updateDoc(docRef, { reactions: currentMsg.reactions }).catch(() => {});
+          }
+        }
+      },
+
+      setTyping: (userId, isTyping) => {
+        if (!FIREBASE_CONFIGURED || !db) return;
+
+        if (typingTimeout) clearTimeout(typingTimeout);
+
+        const typingDocRef = doc(db, TYPING_COLLECTION, userId);
+        void setDoc(typingDocRef, {
+          isTyping,
+          updatedAt: Date.now(),
+        });
+
+        if (isTyping) {
+          typingTimeout = window.setTimeout(() => {
+            void setDoc(typingDocRef, { isTyping: false, updatedAt: Date.now() });
+          }, 3500);
+        }
       },
 
       markRead: (currentUserId) => {
@@ -179,8 +273,8 @@ export const useChatStore = create<ChatState>()(
     {
       name: 'our-story:chat',
       storage: createJSONStorage(() => localStorage),
-      version: 1,
-      partialize: (s) => ({ messages: s.messages.slice(-50) }), // keep last 50 for offline
+      version: 2,
+      partialize: (s) => ({ messages: s.messages.slice(-80) }),
     },
   ),
 );

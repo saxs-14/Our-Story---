@@ -27,42 +27,56 @@ interface Item {
   place?: string;
   authored?: PersonId;
   mediaIds?: string[];
+  mediaUrls?: string[];
   future?: boolean;
   isUser?: boolean;
 }
 
 const FILTERS: { key: Filter; label: string }[] = [
-  { key: 'all', label: 'Everything' },
-  { key: 'ours', label: 'Our moments' },
-  { key: 'friendship', label: 'Friendship' },
-  { key: 'relationship', label: 'Us' },
-  { key: 'milestone', label: 'Milestones' },
-  { key: 'future', label: 'Dreams ahead' },
+  { key: 'all', label: 'Everything ✨' },
+  { key: 'ours', label: 'Our Moments 💖' },
+  { key: 'relationship', label: 'Us Official ❤️' },
+  { key: 'friendship', label: 'Friendship 🌱' },
+  { key: 'milestone', label: 'Milestones 🎂' },
+  { key: 'future', label: 'Future Dreams 💍' },
 ];
 
 const COLOR: Record<Bucket, string> = {
   friendship: '#a99ed6',
-  relationship: '#b76e79',
+  relationship: '#e3706a',
   milestone: '#d4af7a',
   future: '#c98b8b',
-  ours: '#e3706a',
+  ours: '#f06292',
 };
 
-const EMOJIS = ['❤️', '😂', '🌅', '🍝', '🎶', '✈️', '🎁', '☕', '🌹', '📸', '🥂', '🌙'];
+const EMOJIS = ['❤️', '❄️', '🔥', '🥹', '🌹', '✨', '🎂', '🥂', '✈️', '💍', '📸', '🎵', '🌙', '🌱'];
 
-function MediaThumbs({ ids }: { ids: string[] }) {
+function MediaThumbs({ ids, urls }: { ids?: string[]; urls?: string[] }) {
+  const allIds = ids || [];
+  const allUrls = urls || [];
+
   return (
-    <div className="mt-3 flex gap-2 overflow-x-auto">
-      {ids.map((id) => (
+    <div className="mt-3 flex gap-2.5 overflow-x-auto pb-1">
+      {allIds.map((id) => (
         <Thumb key={id} id={id} />
+      ))}
+      {allUrls.map((url, i) => (
+        <img
+          key={i}
+          src={url}
+          alt="Memory attachment"
+          className="h-24 w-24 shrink-0 rounded-2xl object-cover shadow-md"
+          loading="lazy"
+        />
       ))}
     </div>
   );
 }
+
 function Thumb({ id }: { id: string }) {
   const url = useMediaUrl(id);
   if (!url) return null;
-  return <img src={url} alt="" className="h-20 w-20 shrink-0 rounded-xl object-cover" loading="lazy" />;
+  return <img src={url} alt="" className="h-24 w-24 shrink-0 rounded-2xl object-cover shadow-md" loading="lazy" />;
 }
 
 function ComposeMoment({ onClose }: { onClose: () => void }) {
@@ -72,41 +86,130 @@ function ComposeMoment({ onClose }: { onClose: () => void }) {
   const [date, setDate] = useState(today);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
+  const [place, setPlace] = useState('');
   const [emoji, setEmoji] = useState('❤️');
   const [mediaIds, setMediaIds] = useState<string[]>([]);
 
   const save = () => {
     if (!userId || !title.trim()) return;
     haptic('success');
-    addMemory({ authorId: userId, date, title: title.trim(), description: description.trim(), emoji, mediaIds });
+    addMemory({
+      authorId: userId,
+      date,
+      title: title.trim(),
+      description: description.trim(),
+      emoji,
+      mediaIds,
+    });
     onClose();
   };
 
   return (
-    <motion.div className="fixed inset-0 z-[70] flex items-center justify-center p-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-      <button type="button" aria-label="Close" className="absolute inset-0 bg-plum-900/55 backdrop-blur-md" onClick={onClose} />
-      <motion.div role="dialog" aria-label="Add a moment" className="glass-strong relative z-10 max-h-[88dvh] w-full max-w-md overflow-y-auto rounded-4xl p-6" initial={{ y: 40, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 20, opacity: 0 }}>
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="font-display text-2xl text-[color:var(--ink-strong)]">Add a real moment</h2>
-          <button type="button" aria-label="Close" onClick={onClose} className="tap flex h-9 w-9 items-center justify-center rounded-full text-[color:var(--ink-soft)]"><CloseIcon width={20} height={20} /></button>
+    <motion.div
+      className="fixed inset-0 z-[80] flex items-center justify-center p-4"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+    >
+      <button
+        type="button"
+        aria-label="Close"
+        className="absolute inset-0 bg-black/80 backdrop-blur-md"
+        onClick={onClose}
+      />
+      <motion.div
+        role="dialog"
+        aria-label="Add a real moment"
+        className="glass-strong relative z-10 max-h-[88dvh] w-full max-w-md overflow-y-auto rounded-4xl border border-rosegold-400/30 p-6 shadow-2xl"
+        initial={{ y: 40, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        exit={{ y: 20, opacity: 0 }}
+      >
+        <div className="mb-4 flex items-center justify-between">
+          <div>
+            <span className="text-xs uppercase tracking-luxe text-rosegold-400">Add to our story</span>
+            <h2 className="font-display text-2xl text-warmwhite">A Moment That Happened</h2>
+          </div>
+          <button
+            type="button"
+            aria-label="Close"
+            onClick={onClose}
+            className="tap flex h-9 w-9 items-center justify-center rounded-full text-rosegold-300 hover:text-white"
+          >
+            <CloseIcon width={20} height={20} />
+          </button>
         </div>
-        <label className="mb-1 block text-xs uppercase tracking-luxe text-rosegold-500">When did it happen?</label>
-        <input type="date" value={date} max={today} onChange={(e) => setDate(e.target.value)} aria-label="Date" className="mb-3 w-full rounded-2xl bg-warmwhite/70 px-4 py-3 text-[color:var(--ink-strong)] focus:outline-none focus:ring-2 focus:ring-rosegold-300" />
-        <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="What happened?" aria-label="Title" className="mb-3 w-full rounded-2xl bg-warmwhite/70 px-4 py-3 font-display text-lg text-[color:var(--ink-strong)] placeholder:text-[color:var(--ink-soft)] focus:outline-none focus:ring-2 focus:ring-rosegold-300" />
-        <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} placeholder="Tell the story of that day…" aria-label="Description" className="mb-3 w-full resize-none rounded-2xl bg-warmwhite/70 p-4 text-[color:var(--ink-strong)] placeholder:text-[color:var(--ink-soft)] focus:outline-none focus:ring-2 focus:ring-rosegold-300" />
-        <div className="mb-3 flex flex-wrap gap-1.5">
+
+        <label className="mb-1 block text-xs uppercase tracking-luxe text-rosegold-400">Date of Memory</label>
+        <input
+          type="date"
+          value={date}
+          onChange={(e) => setDate(e.target.value)}
+          aria-label="Date"
+          className="mb-3 w-full rounded-2xl bg-warmwhite/10 px-4 py-3 text-warmwhite focus:outline-none focus:ring-2 focus:ring-rosegold-400"
+        />
+
+        <input
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder="Title of this special moment…"
+          aria-label="Title"
+          className="mb-3 w-full rounded-2xl bg-warmwhite/10 px-4 py-3 font-display text-lg text-warmwhite placeholder:text-rosegold-200/50 focus:outline-none focus:ring-2 focus:ring-rosegold-400"
+        />
+
+        <textarea
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          rows={3}
+          placeholder="Tell the story of what happened between us that day…"
+          aria-label="Description"
+          className="mb-3 w-full resize-none rounded-2xl bg-warmwhite/10 p-4 text-warmwhite placeholder:text-rosegold-200/50 focus:outline-none focus:ring-2 focus:ring-rosegold-400"
+        />
+
+        <input
+          value={place}
+          onChange={(e) => setPlace(e.target.value)}
+          placeholder="Location (e.g. Mbombela, our favourite spot)"
+          aria-label="Place"
+          className="mb-3 w-full rounded-2xl bg-warmwhite/10 px-4 py-2.5 text-sm text-warmwhite placeholder:text-rosegold-200/50 focus:outline-none focus:ring-2 focus:ring-rosegold-400"
+        />
+
+        <label className="mb-1 block text-xs uppercase tracking-luxe text-rosegold-400">Choose an Emoji</label>
+        <div className="mb-4 flex flex-wrap gap-2">
           {EMOJIS.map((e) => (
-            <button key={e} onClick={() => setEmoji(e)} className={cn('tap h-9 w-9 rounded-full text-lg', emoji === e ? 'bg-rosegold-500/20 ring-2 ring-rosegold-400' : 'glass')}>{e}</button>
+            <button
+              key={e}
+              type="button"
+              onClick={() => setEmoji(e)}
+              className={cn(
+                'tap flex h-9 w-9 items-center justify-center rounded-full text-lg transition-transform',
+                emoji === e ? 'bg-rosegold-500/30 ring-2 ring-rosegold-400 scale-110' : 'bg-warmwhite/10',
+              )}
+            >
+              {e}
+            </button>
           ))}
         </div>
+
         <div className="mb-4 flex items-center gap-3">
-          <MediaUpload accept="image/*" label="Add a photo to this moment" onUploaded={(id) => setMediaIds((m) => [...m, id])} className="glass rounded-2xl px-4 py-2 text-sm text-rosegold-600">
-            📷 Add photo
+          <MediaUpload
+            accept="image/*,video/*"
+            label="Attach photo or video"
+            onUploaded={(id) => setMediaIds((m) => [...m, id])}
+            className="rounded-2xl border border-rosegold-400/30 bg-rosegold-500/20 px-4 py-2 text-sm text-warmwhite"
+          >
+            📷 Attach Photo / Video
           </MediaUpload>
-          {mediaIds.length > 0 && <span className="text-xs text-[color:var(--ink-soft)]">{mediaIds.length} added</span>}
+          {mediaIds.length > 0 && (
+            <span className="text-xs text-rosegold-300">{mediaIds.length} attached</span>
+          )}
         </div>
+
         {mediaIds.length > 0 && <MediaThumbs ids={mediaIds} />}
-        <Button variant="primary" className="mt-4 w-full" onClick={save} disabled={!title.trim()}>Save to our timeline</Button>
+
+        <Button variant="gold" size="lg" className="mt-4 w-full" onClick={save} disabled={!title.trim()}>
+          Save to Our Timeline ♥
+        </Button>
       </motion.div>
     </motion.div>
   );
@@ -117,6 +220,7 @@ export default function Timeline() {
   const [composing, setComposing] = useState(false);
   const userMemories = useContentStore((s) => s.memories);
   const deleteMemory = useContentStore((s) => s.deleteMemory);
+
 
   const items = useMemo<Item[]>(() => {
     const seeded: Item[] = MEMORIES.map((m) => ({
@@ -129,6 +233,7 @@ export default function Timeline() {
       place: m.place,
       future: m.type === 'future',
     }));
+
     const mine: Item[] = userMemories.map((m) => ({
       id: m.id,
       date: m.date,
@@ -138,51 +243,107 @@ export default function Timeline() {
       bucket: 'ours',
       authored: m.authorId,
       mediaIds: m.mediaIds,
+      mediaUrls: m.mediaUrls,
       isUser: true,
     }));
+
     const all = [...seeded, ...mine];
     const list = filter === 'all' ? all : all.filter((e) => e.bucket === filter);
     return list.sort((a, b) => +new Date(a.date) - +new Date(b.date));
   }, [filter, userMemories]);
 
   return (
-    <PageShell eyebrow="Our timeline" title="From friends to forever" subtitle="The real chapters — add what actually happened, the day it happened. No lies, just us.">
-      <Button variant="gold" size="lg" className="mb-5 w-full" onClick={() => { haptic('soft'); setComposing(true); }}>
-        ➕ Add a moment that really happened
+    <PageShell
+      eyebrow="Our Journey"
+      title="The Timeline"
+      subtitle="From the very first day we talked to the memories we create today. Only our real story."
+    >
+      <Button
+        variant="gold"
+        size="lg"
+        className="mb-5 w-full shadow-[0_0_20px_rgba(212,175,122,0.35)]"
+        onClick={() => {
+          haptic('soft');
+          setComposing(true);
+        }}
+      >
+        ➕ Add a moment that happened
       </Button>
 
+      {/* Filter Chips */}
       <div className="mb-7 flex gap-2 overflow-x-auto pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {FILTERS.map((f) => (
-          <button key={f.key} onClick={() => { haptic('tap'); setFilter(f.key); }} className={cn('tap whitespace-nowrap rounded-full px-4 py-1.5 text-sm transition-colors', filter === f.key ? 'bg-gradient-to-br from-rosegold-400 to-rosegold-600 text-warmwhite' : 'glass text-[color:var(--ink-soft)]')}>
+          <button
+            key={f.key}
+            onClick={() => {
+              haptic('tap');
+              setFilter(f.key);
+            }}
+            className={cn(
+              'tap whitespace-nowrap rounded-full px-4 py-1.5 text-sm transition-all',
+              filter === f.key
+                ? 'bg-gradient-to-br from-rosegold-500 to-rosegold-700 text-warmwhite font-medium shadow-md'
+                : 'glass text-[color:var(--ink-soft)]',
+            )}
+          >
             {f.label}
           </button>
         ))}
       </div>
 
-      <div className="relative pl-8">
-        <div className="absolute bottom-0 left-3 top-2 w-px bg-gradient-to-b from-lavender-400 via-rosegold-400 to-dustyrose-400" />
+      {/* Vertical Glowing Timeline */}
+      <div className="relative pl-7">
+        <div className="absolute bottom-0 left-3 top-2 w-0.5 bg-gradient-to-b from-rosegold-400 via-rose-500 to-dustyrose-400 shadow-[0_0_10px_rgba(227,70,95,0.6)]" />
+
         <ul className="space-y-6">
           {items.map((e, i) => (
-            <motion.li key={e.id} className="relative" initial={{ opacity: 0, x: -16 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true, margin: '-10% 0px' }} transition={{ duration: 0.5, delay: Math.min(i, 6) * 0.04, ease: [0.22, 1, 0.36, 1] }}>
-              <span className="absolute -left-[1.4rem] top-3 flex h-7 w-7 -translate-x-1/2 items-center justify-center rounded-full text-sm shadow-soft" style={{ background: `radial-gradient(circle at 35% 30%, ${COLOR[e.bucket]}, ${COLOR[e.bucket]}bb)` }} aria-hidden>
+            <motion.li
+              key={e.id}
+              className="relative"
+              initial={{ opacity: 0, x: -16 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              viewport={{ once: true, margin: '-10% 0px' }}
+              transition={{ duration: 0.5, delay: Math.min(i, 6) * 0.05, ease: [0.22, 1, 0.36, 1] }}
+            >
+              {/* Floating Emoji Marker on Line */}
+              <span
+                className="absolute -left-[1.45rem] top-3 flex h-8 w-8 -translate-x-1/2 items-center justify-center rounded-full text-base shadow-[0_0_15px_rgba(227,70,95,0.5)] border border-white/20"
+                style={{
+                  background: `radial-gradient(circle at 35% 30%, ${COLOR[e.bucket]}, ${COLOR[e.bucket]}cc)`,
+                }}
+                aria-hidden
+              >
                 {e.emoji}
               </span>
-              <GlassCard className={cn('p-5', e.future && 'border-dashed opacity-95')}>
+
+              <GlassCard className={cn('p-5 shadow-glass transition-all hover:border-rosegold-400/40', e.future && 'border-dashed opacity-95')}>
                 <div className="flex items-start justify-between gap-2">
-                  <p className="text-[0.65rem] uppercase tracking-luxe" style={{ color: COLOR[e.bucket] }}>
-                    {formatLongDate(e.date)} {e.future && '· yet to come'}
-                    {e.authored && ` · ${personById(e.authored).nickname}`}
+                  <p className="text-[0.65rem] font-bold uppercase tracking-luxe" style={{ color: COLOR[e.bucket] }}>
+                    {formatLongDate(e.date)} {e.future && '· future aspiration'}
+                    {e.authored && ` · added by ${personById(e.authored).nickname}`}
                   </p>
                   {e.isUser && (
-                    <button type="button" aria-label="Delete moment" onClick={() => { haptic('tap'); deleteMemory(e.id); }} className="tap flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[color:var(--ink-soft)] hover:text-dustyrose-500">
+                    <button
+                      type="button"
+                      aria-label="Delete moment"
+                      onClick={() => {
+                        haptic('tap');
+                        deleteMemory(e.id);
+                      }}
+                      className="tap flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[color:var(--ink-soft)] hover:text-red-400"
+                    >
                       <CloseIcon width={14} height={14} />
                     </button>
                   )}
                 </div>
+
                 <h3 className="mt-1 font-display text-2xl text-[color:var(--ink-strong)]">{e.title}</h3>
-                {e.description && <p className="mt-1.5 text-[color:var(--ink-soft)]">{e.description}</p>}
-                {e.place && <p className="mt-2 text-xs text-rosegold-500">📍 {e.place}</p>}
-                {e.mediaIds && e.mediaIds.length > 0 && <MediaThumbs ids={e.mediaIds} />}
+                {e.description && <p className="mt-2 text-sm leading-relaxed text-[color:var(--ink-soft)]">{e.description}</p>}
+                {e.place && <p className="mt-2.5 text-xs text-rosegold-500">📍 {e.place}</p>}
+
+                {(e.mediaIds?.length || e.mediaUrls?.length) ? (
+                  <MediaThumbs ids={e.mediaIds} urls={e.mediaUrls} />
+                ) : null}
               </GlassCard>
             </motion.li>
           ))}

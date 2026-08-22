@@ -42,5 +42,6 @@ export { app, auth, db, storage };
 
 /** Synthetic Firebase email for each partner */
 export function firebaseEmail(personId: 'her' | 'him'): string {
-  return personId === 'her' ? 'ayanda@ourstory.app' : 'phathu@ourstory.app';
+  return personId === 'her' ? 'lihle@ourstory.app' : 'phathu@ourstory.app';
 }
+

@@ -90,23 +90,24 @@ export function LoginGate() {
               <div className="mb-4 mt-4 flex flex-col items-center gap-2">
                 <Avatar id={picked} size={72} />
                 <p className="text-sm text-[color:var(--ink-soft)]">
-                  Hi {personById(picked).nickname} — what's the date our story began?
+                  Hi {personById(picked).nickname} — enter your secret date to enter our private world ♥
                 </p>
               </div>
               <input
-                type="password"
-                inputMode="numeric"
+                type="text"
                 autoFocus
                 value={pw}
                 onChange={(e) => { setPw(e.target.value); setError(false); }}
-                placeholder="DD/MM/YYYY"
-                aria-label="Password: the date you started dating"
+                placeholder={picked === 'her' ? '06 August 2003 or 06/08/2003' : '14 June 2005 or 14/06/2005'}
+                aria-label="Password date"
                 aria-invalid={error}
-                className="w-full rounded-2xl bg-warmwhite/70 px-4 py-3 text-center text-lg tracking-widest text-[color:var(--ink-strong)] placeholder:text-[color:var(--ink-soft)]/60 focus:outline-none focus:ring-2 focus:ring-rosegold-300"
+                className="w-full rounded-2xl bg-warmwhite/70 px-4 py-3 text-center text-base tracking-wider text-[color:var(--ink-strong)] placeholder:text-[color:var(--ink-soft)]/60 focus:outline-none focus:ring-2 focus:ring-rosegold-300"
               />
               {error && (
-                <p role="alert" className="mt-2 text-sm text-dustyrose-500">
-                  Not quite — it's the day we made it official. 💗
+                <p role="alert" className="mt-2 text-xs text-dustyrose-500">
+                  {picked === 'her'
+                    ? "Hint: Your birthday (06 August 2003) ❄️✨"
+                    : "Hint: Your birthday (14 June 2005) 🔥"}
                 </p>
               )}
               <div className="mt-5 flex gap-2">
@@ -114,17 +115,18 @@ export function LoginGate() {
                   Back
                 </Button>
                 <Button type="submit" variant="primary" className="flex-1">
-                  Come in ♥
+                  Enter Our World ♥
                 </Button>
               </div>
             </motion.form>
           )}
         </AnimatePresence>
 
-        <p className="mt-6 text-[0.65rem] text-[color:var(--ink-soft)]">
-          A private place for {relationship.her.nickname} & {relationship.him.nickname}.
+        <p className="mt-6 text-[0.7rem] text-[color:var(--ink-soft)]">
+          A private universe for {relationship.him.nickname} & {relationship.her.nickname}.
         </p>
       </GlassCard>
     </motion.div>
   );
 }
+

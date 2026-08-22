@@ -1,8 +1,8 @@
 /**
- * The Memory Timeline — only REAL confirmed moments.
- * Fake or guessed entries have been removed.
- * Add new entries here as Phathu or Ayanda share what actually happened.
- * Users add their own moments live via the Timeline page compose form.
+ * The Memory Timeline — Real confirmed moments for Saxs🥹❤️🔥 & Snowpie ❄️✨.
+ * Love at first sight: 04 August 2026
+ * Dating started: 11 August 2026
+ * Both partners add their moments live through the Timeline compose form.
  */
 import relationship from '@/config/relationship';
 
@@ -10,106 +10,61 @@ export type MemoryType = 'friendship' | 'relationship' | 'milestone' | 'future';
 
 export interface MemoryEvent {
   id: string;
-  date: string; // ISO
+  date: string; // ISO YYYY-MM-DD
   title: string;
   description: string;
   type: MemoryType;
   emoji: string;
-  /** Optional map pin */
   place?: string;
   lat?: number;
   lng?: number;
+  mediaUrls?: string[];
 }
 
-const { friendshipStart, relationshipStart, her, him, origin } = relationship;
+const { her, him, origin, firstSight, relationshipStart } = relationship;
 
 export const MEMORIES: MemoryEvent[] = [
-  // ── Real confirmed moments ────────────────────────────────────────────────
   {
-    id: 'm-friendship',
-    date: friendshipStart,
-    title: 'Where it all began',
+    id: 'm-snowpie-bday',
+    date: her.birthday,
+    title: `${her.nickname}'s Birthday 🎂`,
+    description: '06 August 2003 — The day God created the most precious and beautiful soul in the universe.',
+    type: 'milestone',
+    emoji: '❄️',
+    place: origin.place,
+  },
+  {
+    id: 'm-saxs-bday',
+    date: him.birthday,
+    title: `${him.nickname}'s Birthday 🔥`,
+    description: '14 June 2005 — The day the boy who loves you with all his heart was born.',
+    type: 'milestone',
+    emoji: '🔥',
+    place: origin.place,
+  },
+  {
+    id: 'm-first-sight',
+    date: firstSight,
+    title: 'Love at First Sight 💘',
     description:
-      'Two people who were only meant to be friends started talking — and somehow never really stopped.',
+      '04 August 2026 — The unforgettable moment Phathu first saw Lihle. One look, and his heart was completely hers forever.',
     type: 'friendship',
-    emoji: '🌱',
+    emoji: '💘',
     place: origin.place,
     lat: origin.lat,
     lng: origin.lng,
   },
   {
-    id: 'm-herbday-25',
-    date: '2025-03-04',
-    title: `${her.nickname}'s birthday 2025`,
-    description: 'The day the world quietly celebrates the best thing it ever did.',
-    type: 'milestone',
-    emoji: '🎂',
-    place: origin.place,
-  },
-  {
-    id: 'm-himbday-25',
-    date: '2025-06-14',
-    title: `${him.nickname}'s birthday 2025`,
-    description: 'Another year of the person lucky enough to love you.',
-    type: 'milestone',
-    emoji: '🎈',
-    place: origin.place,
-  },
-  {
     id: 'm-official',
     date: relationshipStart,
-    title: 'The day it became us',
+    title: 'The Day It Became Us ❤️',
     description:
-      'The friendship finally became the thing it had been growing into. 08 May — the start of our story.',
+      '11 August 2026 — The day we officially became boyfriend and girlfriend. The start of our forever love story.',
     type: 'relationship',
     emoji: '❤️',
     place: origin.place,
     lat: origin.lat,
     lng: origin.lng,
-  },
-  {
-    id: 'm-firstmonth',
-    date: '2026-06-08',
-    title: 'One month of us 🥂',
-    description: 'Our very first monthiversary — small number, enormous feeling.',
-    type: 'relationship',
-    emoji: '🥂',
-    place: origin.place,
-  },
-  {
-    id: 'm-herbday-26',
-    date: '2026-03-04',
-    title: `${her.nickname}'s birthday 2026`,
-    description: 'Celebrating the most important person.',
-    type: 'milestone',
-    emoji: '🎂',
-    place: origin.place,
-  },
-
-  // ── Future aspirations (clearly marked) ───────────────────────────────────
-  {
-    id: 'm-future-anniv',
-    date: '2027-05-08',
-    title: 'Our first year',
-    description: 'A whole year of choosing each other. The first of so many.',
-    type: 'future',
-    emoji: '🌟',
-  },
-  {
-    id: 'm-future-trip',
-    date: '2027-12-20',
-    title: 'The trip we keep talking about',
-    description: "Somewhere with a sunset worth the wait. We'll get there.",
-    type: 'future',
-    emoji: '✈️',
-  },
-  {
-    id: 'm-future-forever',
-    date: '2030-05-08',
-    title: 'Still choosing you',
-    description: 'A marker for the future — proof we planned to keep going, and did.',
-    type: 'future',
-    emoji: '💍',
   },
 ];
 

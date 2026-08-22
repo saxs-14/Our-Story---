@@ -4,62 +4,79 @@ import { useLocation } from 'react-router-dom';
 import { haptic } from '@/lib/haptics';
 import { GALLERY_SONG, PLAYLISTS } from '@/data/songs';
 
-/** Spotify embedded playlist panel — real, named songs. */
+/** Spotify embedded playlist panel tailored for Saxs & Snowpie */
 function SpotifyPanel({ onClose }: { onClose: () => void }) {
-  const [tab, setTab] = useState<'love' | 'gospel' | 'sa-gospel'>('love');
+  const [tab, setTab] = useState<'rnb-love' | 'sa-gospel' | 'makhadzi' | 'amapiano'>('rnb-love');
   const location = useLocation();
   const isGallery = location.pathname === '/gallery';
 
-  const playlist = tab === 'love'
-    ? PLAYLISTS.loveSongs
-    : tab === 'sa-gospel'
-    ? PLAYLISTS.southAfricanGospel
-    : PLAYLISTS.christianWorship;
+  const playlist =
+    tab === 'sa-gospel'
+      ? PLAYLISTS.saGospel
+      : tab === 'makhadzi'
+      ? PLAYLISTS.makhadzi
+      : tab === 'amapiano'
+      ? PLAYLISTS.amapiano
+      : PLAYLISTS.rnbLove;
+
 
   return (
     <motion.div
-      className="glass-strong absolute bottom-14 right-0 z-50 w-[min(360px,94vw)] overflow-hidden rounded-3xl shadow-glass-lg"
+      className="glass-strong absolute bottom-16 right-0 z-50 w-[min(380px,94vw)] max-h-[85vh] overflow-hidden rounded-4xl border border-rosegold-400/30 shadow-2xl backdrop-blur-2xl"
       initial={{ opacity: 0, scale: 0.92, y: 12 }}
       animate={{ opacity: 1, scale: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.92, y: 12 }}
     >
-      <div className="flex items-center justify-between px-3 pt-4 pb-2">
-        <p className="text-xs font-semibold uppercase tracking-luxe text-rosegold-500">
-          🎵 Music
-        </p>
+      <div className="flex items-center justify-between border-b border-rosegold-400/20 px-5 pt-4 pb-3">
+        <div>
+          <span className="text-[0.65rem] uppercase tracking-luxe text-rosegold-400">Our Soundtrack</span>
+          <h3 className="font-display text-lg font-medium text-warmwhite">Music & Playlists</h3>
+        </div>
         <button
           type="button"
           aria-label="Close music panel"
           onClick={onClose}
-          className="tap text-[color:var(--ink-soft)] hover:text-rosegold-500"
+          className="tap flex h-8 w-8 items-center justify-center rounded-full bg-white/10 text-rosegold-200 hover:text-white"
         >
           ✕
         </button>
       </div>
 
-      {/* Tab switcher */}
-      <div className="flex gap-1.5 px-3 pb-3">
-        {([['love', '❤️ Love'], ['gospel', '🙏 Gospel'], ['sa-gospel', '🇿🇦 SA Gospel']] as const).map(([key, label]) => (
+      {/* Music Category Tabs */}
+      <div className="grid grid-cols-2 gap-1.5 p-3 sm:grid-cols-4">
+        {[
+          ['rnb-love', '🍷 R&B / Love'],
+          ['sa-gospel', '🇿🇦 SA Gospel'],
+          ['makhadzi', '👑 Makhadzi'],
+          ['amapiano', '🎹 Amapiano'],
+        ].map(([key, label]) => (
           <button
             key={key}
-            onClick={() => setTab(key)}
-            className={`tap rounded-full px-3 py-1 text-[0.65rem] font-medium transition-colors ${tab === key ? 'bg-rosegold-500 text-warmwhite' : 'glass text-[color:var(--ink-soft)]'}`}
+            onClick={() => {
+              haptic('tap');
+              setTab(key as typeof tab);
+            }}
+            className={`tap rounded-xl px-2 py-2 text-[0.68rem] font-medium transition-all ${
+              tab === key
+                ? 'bg-gradient-to-br from-rosegold-500 to-rosegold-700 text-warmwhite font-bold shadow-md'
+                : 'bg-white/5 text-rosegold-200/80 hover:bg-white/10'
+            }`}
           >
             {label}
           </button>
         ))}
       </div>
 
-      {/* Photograph when on Gallery */}
-      {isGallery && tab === 'love' && (
-        <div className="px-2 pb-2">
+      {/* Special track when in Gallery */}
+      {isGallery && tab === 'rnb-love' && (
+        <div className="px-3 pb-2">
           <p className="mb-1 text-[0.6rem] uppercase tracking-luxe text-rosegold-400">
-            📸 Playing for the Gallery
+            📸 Curated for the Gallery
           </p>
           <iframe
             src={GALLERY_SONG.embedUrl}
             width="100%"
-            height="152"
+            height="80"
             allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
             loading="lazy"
             title="Photograph — Ed Sheeran"
@@ -69,48 +86,40 @@ function SpotifyPanel({ onClose }: { onClose: () => void }) {
         </div>
       )}
 
-      {/* Playlist embed */}
-      <div className="px-2 pb-4">
-        <p className="mb-1 text-[0.6rem] uppercase tracking-luxe text-[color:var(--ink-soft)]">
-          {playlist.name}
-        </p>
+      {/* Embedded Spotify Player */}
+      <div className="px-3 pb-4">
         <iframe
           key={playlist.embedUrl}
           src={playlist.embedUrl}
           width="100%"
-          height="352"
+          height="280"
           allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
           loading="lazy"
           title={playlist.name}
-          className="rounded-2xl"
+          className="rounded-3xl border border-white/10 shadow-lg"
           style={{ border: 'none' }}
         />
-        <p className="mt-2 text-center text-[0.6rem] leading-snug text-[color:var(--ink-soft)]">
-          Press ▶ on a song to play. Tip: log in to Spotify for full tracks.
-        </p>
-        <a
-          href={playlist.openUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="mt-1 block text-center text-[0.65rem] text-rosegold-500 underline underline-offset-2"
-        >
-          Open in Spotify ↗
-        </a>
+
+        <div className="mt-3 flex items-center justify-between px-1">
+          <p className="text-[0.65rem] text-rosegold-200/70">
+            Tap ▶ to play · Log in for full tracks
+          </p>
+          <a
+            href={playlist.openUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-[0.65rem] font-bold text-rosegold-400 underline underline-offset-2 hover:text-rosegold-300"
+          >
+            Open in Spotify ↗
+          </a>
+        </div>
       </div>
     </motion.div>
   );
 }
 
-/**
- * Music player: a floating button that opens a Spotify panel with real,
- * named songs — love songs, gospel, and SA gospel. The Gallery page surfaces
- * "Photograph" by Ed Sheeran first. (Browsers require a tap on Spotify's own
- * ▶ button before audio starts; full tracks need a Spotify login.)
- */
 export function MusicPlayer() {
   const [open, setOpen] = useState(false);
-  const location = useLocation();
-  const isGallery = location.pathname === '/gallery';
 
   const toggle = () => {
     haptic('tap');
@@ -118,7 +127,7 @@ export function MusicPlayer() {
   };
 
   return (
-    <div className="fixed right-4 bottom-[calc(env(safe-area-inset-bottom)+6.5rem)] z-40 flex flex-col items-end gap-2">
+    <div className="fixed right-4 bottom-[calc(env(safe-area-inset-bottom)+5.8rem)] z-40 flex flex-col items-end gap-1.5">
       <AnimatePresence>
         {open && <SpotifyPanel key="spotify" onClose={() => setOpen(false)} />}
       </AnimatePresence>
@@ -127,29 +136,21 @@ export function MusicPlayer() {
         type="button"
         aria-label={open ? 'Close music' : 'Open music'}
         aria-pressed={open}
-        whileTap={{ scale: 0.9 }}
+        whileTap={{ scale: 0.92 }}
         onClick={toggle}
-        className="glass-strong flex h-12 w-12 items-center justify-center rounded-full text-rosegold-600 shadow-glass"
+        className="glass-strong flex h-12 w-12 items-center justify-center rounded-full border border-rosegold-400/40 text-rosegold-300 shadow-[0_0_20px_rgba(227,70,95,0.4)] backdrop-blur-xl"
       >
         <span className="relative text-xl leading-none" aria-hidden="true">
           🎵
           {open && (
             <motion.span
-              className="absolute inset-0 -m-2 rounded-full border border-rosegold-400/40"
-              animate={{ scale: [1, 1.4], opacity: [0.6, 0] }}
+              className="absolute inset-0 -m-2 rounded-full border border-rosegold-400/50"
+              animate={{ scale: [1, 1.4], opacity: [0.7, 0] }}
               transition={{ duration: 2, repeat: Infinity }}
             />
           )}
         </span>
       </motion.button>
-
-      <button
-        type="button"
-        onClick={toggle}
-        className="text-[0.6rem] uppercase tracking-luxe text-[#1DB954] underline-offset-2 hover:underline"
-      >
-        {open ? 'Close' : isGallery ? 'Play our song' : 'Music'}
-      </button>
     </div>
   );
 }

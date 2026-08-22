@@ -1,79 +1,83 @@
 /**
- * Our Story — single source of truth for the relationship.
- *
- * Everything in the app reads from here, so the experience can be re-pointed
- * at a different couple, anniversary, or set of names by editing ONE file.
- * All dates are ISO `YYYY-MM-DD` (local midnight) unless noted.
+ * Relationship identity & dates configuration.
+ * Exclusively for Phathu (Saxs🥹❤️🔥) and Lihle (Snowpie ❄️✨).
  */
 
-export interface Person {
-  /** Full legal / given name */
+export interface PersonConfig {
+  id: 'her' | 'him';
   name: string;
-  /** What we lovingly call them */
   nickname: string;
-  /** Single-letter monogram used in the crystal heart and seals */
+  shortName: string;
   initial: string;
-  /** ISO birthday */
-  birthday: string;
-  /** Pronoun used in a few generated lines */
-  pronoun: 'he' | 'she' | 'they';
+  birthday: string; // ISO YYYY-MM-DD
+  avatarPlaceholder: string;
+  favoriteCarBrand?: string;
 }
 
 export interface RelationshipConfig {
-  /** The person this app is *for* (the one opening it) */
-  her: Person;
-  /** The person who built it */
-  him: Person;
-  /** ~When the friendship began */
-  friendshipStart: string;
-  /** When you became official */
+  her: PersonConfig;
+  him: PersonConfig;
+  /** Love at first sight for Phathu — 04 August 2026 */
+  firstSight: string;
+  /** Official relationship start date — 11 August 2026 */
   relationshipStart: string;
-  /** Where it all began — used by the Memory Map & Timeline */
+  /** Friendship started */
+  friendshipStart: string;
   origin: {
+    city: string;
+    province: string;
+    country: string;
     place: string;
     lat: number;
     lng: number;
   };
-  /** Shown on the cinematic intro and share cards */
+  monogram: string;
   tagline: string;
-  /** A short love-letter signature */
   signature: string;
+  sharedPassions: string[];
 }
 
 export const relationship: RelationshipConfig = {
   her: {
-    name: 'Lihle Nzimande',
-    nickname: 'Lihle',
+    id: 'her',
+    name: 'Lihle',
+    nickname: 'Snowpie ❄️✨',
+    shortName: 'Lihle',
     initial: 'L',
-    birthday: '2005-08-06',
-    pronoun: 'she',
+    birthday: '2003-08-06', // 06 August 2003
+    avatarPlaceholder: '❄️',
+    favoriteCarBrand: 'Audi',
   },
   him: {
-    name: 'Phathutshedzo Mamagau',
-    nickname: 'Phathu',
+    id: 'him',
+    name: 'Phathu',
+    nickname: 'Saxs🥹❤️🔥',
+    shortName: 'Phathu',
     initial: 'P',
-    birthday: '2005-06-14',
-    pronoun: 'he',
+    birthday: '2005-06-14', // 14 June 2005
+    avatarPlaceholder: '🔥',
+    favoriteCarBrand: 'Audi',
   },
-  // Friendship history retained from the original story configuration.
-  friendshipStart: '2024-02-01',
-  relationshipStart: '2026-08-11',
+  firstSight: '2026-08-04',       // 04 August 2026 — Love at first sight for Phathu
+  relationshipStart: '2026-08-11',// 11 August 2026 — Official Dating Anniversary
+  friendshipStart: '2026-08-04',  // 04 August 2026
   origin: {
-    place: 'Mbombela, Mpumalanga, South Africa',
-    lat: -25.4653,
-    lng: 30.9858,
+    city: 'Mbombela',
+    province: 'Mpumalanga',
+    country: 'South Africa',
+    place: 'Mbombela, Mpumalanga',
+    lat: -25.4753,
+    lng: 30.9694,
   },
-  tagline: 'Every moment matters.',
-  signature: 'Always & in all ways,\nPhathu',
+  monogram: 'P ❤️ L',
+  tagline: 'Saxs & Snowpie · Forever & Always',
+  signature: 'Phathu & Lihle',
+  sharedPassions: ['Audi Cars 🚗💨', 'Late Night Talks 🌙', 'Gospel & Amapiano 🎵', 'Road Trips 🛣️'],
 };
 
-/** "P ❤️ L" — the monogram living inside the crystal heart. */
-export const monogram = `${relationship.him.initial} ❤️ ${relationship.her.initial}`;
-
-/** "Lihle ❤️ Phathu" — intro order (her first). */
-export const introNames = `${relationship.her.nickname} ❤️ ${relationship.him.nickname}`;
-
-/** "Phathutshedzo Mamagau ❤️ Lihle Nzimande" — formal full pairing. */
-export const fullPairing = `${relationship.him.name} ❤️ ${relationship.her.name}`;
-
 export default relationship;
+
+export const fullPairing = `${relationship.him.nickname} & ${relationship.her.nickname}`;
+export const namesPairing = `${relationship.him.shortName} & ${relationship.her.shortName}`;
+export const introNames = fullPairing;
+export const monogram = relationship.monogram;

@@ -18,7 +18,10 @@ import { AchievementWatcher } from '@/components/system/AchievementWatcher';
 import { CelebrationMode } from '@/components/system/CelebrationMode';
 import { MusicPlayer } from '@/components/system/MusicPlayer';
 import { ChatNotifier } from '@/components/system/ChatNotifier';
+import { GardenNotifier } from '@/components/system/GardenNotifier';
+import { CallModal } from '@/components/call/CallModal';
 import { HeartFilledIcon } from '@/components/icons';
+
 
 const Home = lazy(() => import('@/pages/Home'));
 const Chat = lazy(() => import('@/pages/Chat'));
@@ -113,7 +116,10 @@ export default function App() {
           <AchievementWatcher />
           <CelebrationMode />
           <ChatNotifier />
+          <GardenNotifier />
           <MusicPlayer />
+          <CallModal />
+
 
           <Suspense fallback={<Loader />}>
             <AnimatePresence mode="wait">

@@ -1,7 +1,8 @@
 /**
  * Identity store — local-first with optional Firebase Auth sync.
- * Login: pick name → enter dating start date as password.
- * When Firebase is configured, also signs into Firebase so Firestore chat works.
+ * Login: pick name → enter birthday as password.
+ *   - Phathu (Saxs🥹❤️🔥): 14 June 2005
+ *   - Lihle (Snowpie ❄️✨): 06 August 2003
  */
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
@@ -15,39 +16,93 @@ import { auth, FIREBASE_CONFIGURED, firebaseEmail } from '@/lib/firebase';
 
 export type PersonId = 'her' | 'him';
 
-/** Digits-only forms of the dating date we'll accept as the password. */
-function acceptablePasswords(): Set<string> {
-  const iso = relationship.relationshipStart; // YYYY-MM-DD
+/** Generates all acceptable representations of a date. */
+function dateVariants(iso: string): string[] {
   const [y, m, d] = iso.split('-');
-  return new Set([
+  const dayNum = String(Number(d));
+  const monthNum = String(Number(m));
+  const months = [
+    'january', 'february', 'march', 'april', 'may', 'june',
+    'july', 'august', 'september', 'october', 'november', 'december'
+  ];
+  const monthName = months[Number(m) - 1] ?? '';
+  const monthShort = monthName.slice(0, 3);
+
+  return [
     iso,
     `${d}${m}${y}`,
     `${y}${m}${d}`,
     `${d}/${m}/${y}`,
     `${d}-${m}-${y}`,
-    `${Number(d)}/${Number(m)}/${y}`,
-  ]);
+    `${dayNum}/${monthNum}/${y}`,
+    `${dayNum}-${monthNum}-${y}`,
+    `${d} ${monthName} ${y}`,
+    `${dayNum} ${monthName} ${y}`,
+    `${d} ${monthShort} ${y}`,
+    `${dayNum} ${monthShort} ${y}`,
+    `${monthName} ${d} ${y}`,
+    `${monthName} ${dayNum} ${y}`,
+    `${monthShort} ${d} ${y}`,
+    `${monthShort} ${dayNum} ${y}`,
+    `${d} ${monthName}`,
+    `${dayNum} ${monthName}`,
+  ];
 }
 
-const normalize = (s: string) => s.trim().toLowerCase().replace(/\s+/g, '');
+function acceptablePasswords(personId: PersonId): Set<string> {
+  const person = personById(personId);
+  const variants = [
+    ...dateVariants(person.birthday),
+    ...dateVariants(relationship.relationshipStart),
+    ...dateVariants(relationship.firstSight),
+  ];
 
-/** The canonical Firebase password for both partners = dating date digits */
-function firebasePassword(): string {
-  const iso = relationship.relationshipStart; // YYYY-MM-DD e.g. 2026-05-08
-  const [y, m, d] = iso.split('-');
-  return `${d}${m}${y}`; // e.g. 08052026
+  if (personId === 'her') {
+    variants.push(
+      '06 August 2003',
+      '6 August 2003',
+      '06/08/2003',
+      '06082003',
+      '2003-08-06',
+      '06-08-2003',
+      '6/8/2003',
+      '06 Aug 2003',
+      '6 Aug 2003'
+    );
+  } else {
+    variants.push(
+      '14 June 2005',
+      '14/06/2005',
+      '14062005',
+      '2005-06-14',
+      '14-06-2005',
+      '14/6/2005',
+      '14 Jun 2005',
+      '14 June'
+    );
+  }
+
+  return new Set(variants);
+}
+
+const normalize = (s: string) => s.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+
+/** The canonical Firebase password for partner auth */
+function firebasePassword(personId: PersonId): string {
+  const person = personById(personId);
+  const [y, m, d] = person.birthday.split('-');
+  return `${d}${m}${y}`; // e.g. 06082003 for Lihle, 14062005 for Phathu
 }
 
 async function signIntoFirebase(personId: PersonId): Promise<void> {
   if (!FIREBASE_CONFIGURED || !auth) return;
   const email = firebaseEmail(personId);
-  const password = firebasePassword();
+  const password = firebasePassword(personId);
   try {
     await signInWithEmailAndPassword(auth, email, password);
   } catch (err: unknown) {
     const code = (err as { code?: string }).code;
     if (code === 'auth/user-not-found' || code === 'auth/invalid-credential') {
-      // First time — create the account
       try {
         await createUserWithEmailAndPassword(auth, email, password);
       } catch {
@@ -69,15 +124,14 @@ export const useAuthStore = create<AuthState>()(
     (set) => ({
       userId: null,
 
-      verify: (_personId, password) => {
-        const accepted = new Set([...acceptablePasswords()].map(normalize));
+      verify: (personId, password) => {
+        const accepted = new Set([...acceptablePasswords(personId)].map(normalize));
         return accepted.has(normalize(password));
       },
 
       login: async (userId) => {
         set({ userId });
         await signIntoFirebase(userId);
-        // Pull cloud content in the background after Firebase auth completes
         const { useContentStore } = await import('@/store/useContentStore');
         void useContentStore.getState().pullFromFirestore();
       },
@@ -92,7 +146,7 @@ export const useAuthStore = create<AuthState>()(
     {
       name: 'our-story:auth',
       storage: createJSONStorage(() => localStorage),
-      version: 2,
+      version: 3,
     },
   ),
 );

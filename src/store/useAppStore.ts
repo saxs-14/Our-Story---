@@ -5,6 +5,7 @@ import { setHapticsEnabled } from '@/lib/haptics';
 
 export type ThemeName = 'day' | 'dusk';
 export type MotionPref = 'system' | 'on' | 'off';
+export type ChatWallpaperType = 'doodle' | 'velvet' | 'dark' | 'emerald' | 'custom-image' | 'custom-video';
 
 interface AppState {
   theme: ThemeName;
@@ -18,6 +19,11 @@ interface AppState {
   introSeen: boolean;
   lastVisit: string | null;
 
+  // WhatsApp Chat Wallpaper options
+  chatWallpaper: ChatWallpaperType;
+  chatCustomImageUrl: string | null;
+  chatCustomVideoUrl: string | null;
+
   setTheme: (t: ThemeName) => void;
   toggleTheme: () => void;
   setMotion: (m: MotionPref) => void;
@@ -29,6 +35,8 @@ interface AppState {
   setMusicVolume: (v: number) => void;
   markIntroSeen: () => void;
   touchVisit: () => void;
+  setChatWallpaper: (w: ChatWallpaperType) => void;
+  setChatCustomMedia: (type: 'image' | 'video', url: string | null) => void;
 }
 
 export const useAppStore = create<AppState>()(
@@ -45,6 +53,10 @@ export const useAppStore = create<AppState>()(
       introSeen: false,
       lastVisit: null,
 
+      chatWallpaper: 'doodle',
+      chatCustomImageUrl: null,
+      chatCustomVideoUrl: null,
+
       setTheme: (theme) => set({ theme }),
       toggleTheme: () => set((s) => ({ theme: s.theme === 'day' ? 'dusk' : 'day' })),
       setMotion: (motion) => set({ motion }),
@@ -59,11 +71,19 @@ export const useAppStore = create<AppState>()(
       setMusicVolume: (musicVolume) => set({ musicVolume }),
       markIntroSeen: () => set({ introSeen: true }),
       touchVisit: () => set({ lastVisit: new Date().toISOString() }),
+      setChatWallpaper: (chatWallpaper) => set({ chatWallpaper }),
+      setChatCustomMedia: (type, url) => {
+        if (type === 'image') {
+          set({ chatCustomImageUrl: url, chatWallpaper: 'custom-image' });
+        } else {
+          set({ chatCustomVideoUrl: url, chatWallpaper: 'custom-video' });
+        }
+      },
     }),
     {
       name: 'our-story:settings',
       storage: createJSONStorage(() => localStorage),
-      version: 1,
+      version: 2,
     },
   ),
 );
