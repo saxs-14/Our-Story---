@@ -19,6 +19,13 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
+      strategies: 'injectManifest',
+      srcDir: 'src',
+      filename: 'sw.ts',
+      injectManifest: {
+        globPatterns: ['**/*.{js,css,html,svg,png,ico,woff,woff2,json,webmanifest}'],
+        maximumFileSizeToCacheInBytes: 6 * 1024 * 1024,
+      },
       includeAssets: [
         'favicon.svg',
         'apple-touch-icon.png',
@@ -82,30 +89,6 @@ export default defineConfig({
             short_name: 'Wrapped',
             url: `${base}#/wrapped`,
             description: 'Replay our story',
-          },
-        ],
-      },
-      workbox: {
-        globPatterns: ['**/*.{js,css,html,svg,png,ico,woff,woff2,json,webmanifest}'],
-        navigateFallback: `${base}index.html`,
-        navigateFallbackDenylist: [/^\/api/],
-        cleanupOutdatedCaches: true,
-        clientsClaim: true,
-        skipWaiting: true,
-        maximumFileSizeToCacheInBytes: 6 * 1024 * 1024,
-        runtimeCaching: [
-          {
-            urlPattern: ({ request }) =>
-              ['image', 'audio', 'video', 'font'].includes(request.destination),
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'our-story-media',
-              expiration: {
-                maxEntries: 200,
-                maxAgeSeconds: 60 * 60 * 24 * 90,
-              },
-              cacheableResponse: { statuses: [0, 200] },
-            },
           },
         ],
       },

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 
 import { PageShell } from '@/components/layout/PageShell';
@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button';
 import { useAppStore, type MotionPref, type ThemeName } from '@/store/useAppStore';
 import { useProgressStore } from '@/store/useProgressStore';
 import { useAuthStore, personById } from '@/store/useAuthStore';
+import { isPushSupported, currentNotificationPermission, enablePushNotifications } from '@/lib/push';
 import relationship from '@/config/relationship';
 import { formatLongDate } from '@/lib/time';
 import { cn } from '@/lib/cn';
@@ -56,6 +57,22 @@ export default function Settings() {
   const logout = useAuthStore((s) => s.logout);
   const [confirm, setConfirm] = useState(false);
 
+  const [pushState, setPushState] = useState<'checking' | 'off' | 'granted' | 'denied' | 'unsupported'>('checking');
+  useEffect(() => {
+    isPushSupported().then((supported) => {
+      if (!supported) return setPushState('unsupported');
+      const perm = currentNotificationPermission();
+      setPushState(perm === 'granted' ? 'granted' : perm === 'denied' ? 'denied' : 'off');
+    });
+  }, []);
+
+  const handleEnablePush = async () => {
+    if (!userId) return;
+    haptic('tap');
+    const result = await enablePushNotifications(userId);
+    setPushState(result);
+  };
+
   return (
     <PageShell eyebrow="Make it yours" title="Settings">
       {userId && (
@@ -98,6 +115,27 @@ export default function Settings() {
         <div className="hairline" />
         <Row label="Message notifications" hint="Alert me when they send a chat (while the app is open)">
           <Toggle checked={app.notificationsOn} onChange={app.setNotifications} label="Message notifications" />
+        </Row>
+        <div className="hairline" />
+        <Row
+          label="Push notifications"
+          hint={
+            pushState === 'unsupported'
+              ? 'Not available on this browser/device'
+              : pushState === 'denied'
+              ? 'Blocked — allow notifications in your browser/site settings'
+              : pushState === 'granted'
+              ? "You'll be notified about messages & calls even when the app is closed"
+              : 'Get notified about messages & calls even when the app is closed'
+          }
+        >
+          {pushState === 'granted' ? (
+            <span className="text-xs font-semibold text-emerald-500">On ✓</span>
+          ) : pushState === 'unsupported' || pushState === 'denied' || pushState === 'checking' ? (
+            <span className="text-xs text-[color:var(--ink-soft)]">—</span>
+          ) : (
+            <Button variant="glass" size="sm" onClick={handleEnablePush}>Enable</Button>
+          )}
         </Row>
       </GlassCard>
 
