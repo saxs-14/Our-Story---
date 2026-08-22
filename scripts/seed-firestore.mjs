@@ -64,12 +64,9 @@ if (!firebaseConfig.apiKey || !firebaseConfig.projectId) {
   process.exit(1);
 }
 
-// Same synthetic account + password the app itself uses.
-// Password = the dating-date digits of relationshipStart (2026-05-08 -> 08052026).
-const RELATIONSHIP_START = '2026-05-08';
-const [y, mo, d] = RELATIONSHIP_START.split('-');
+// Same synthetic account + password the app itself uses (Phathu's birthday: 14 June 2005 -> 14062005)
 const ACCOUNT_EMAIL = 'phathu@ourstory.app';
-const ACCOUNT_PASSWORD = `${d}${mo}${y}`;
+const ACCOUNT_PASSWORD = '14062005';
 
 async function main() {
   console.log(`→ Connecting to Firebase project: ${firebaseConfig.projectId}`);

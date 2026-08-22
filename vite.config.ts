@@ -36,7 +36,7 @@ export default defineConfig({
         name: 'Our Story ❤️',
         short_name: 'Our Story',
         description:
-          'A private digital world for Phathutshedzo & Ayanda — letters, memories, reasons, and a living garden of love.',
+          'A private digital world for Phathutshedzo & Lihle — letters, memories, reasons, and a living garden of love.',
         theme_color: '#1a0f1a',
         background_color: '#1a0f1a',
         display: 'standalone',

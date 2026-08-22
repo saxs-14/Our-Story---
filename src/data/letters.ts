@@ -48,7 +48,7 @@ export const LETTERS: Letter[] = [
       'Whenever the world feels noisy or heavy, come here. This space is ours and ours alone.',
     ],
     signoff: 'Forever & in every universe,\nSaxs🥹❤️🔥',
-    date: '2026-05-08',
+    date: '2026-08-11',
     readingTime: 2,
     sealColor: '#e3706a',
   },
