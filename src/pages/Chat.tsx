@@ -5,6 +5,7 @@ import { useChatStore } from '@/store/useChatStore';
 import { useAuthStore, personById, partnerOf } from '@/store/useAuthStore';
 import { useAppStore, type ChatWallpaperType } from '@/store/useAppStore';
 import { useCallStore } from '@/store/useCallStore';
+import { usePresenceStore } from '@/store/usePresenceStore';
 import { useContentStore, getUploadPath } from '@/store/useContentStore';
 import { useMediaUrl } from '@/hooks/useMediaUrl';
 import { saveMedia } from '@/lib/idb';
@@ -373,6 +374,57 @@ function ReactionPicker({
   );
 }
 
+/** Full-screen WhatsApp-style media viewer for a tapped image/video attachment. */
+function MediaViewerModal({
+  url,
+  type,
+  onClose,
+}: {
+  url: string;
+  type: 'image' | 'video';
+  onClose: () => void;
+}) {
+  return (
+    <motion.div
+      className="fixed inset-0 z-[95] flex items-center justify-center bg-black/95 p-4"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      onClick={onClose}
+    >
+      <button
+        type="button"
+        aria-label="Close"
+        onClick={onClose}
+        className="tap absolute right-3 top-[calc(env(safe-area-inset-top)+0.75rem)] z-10 flex h-10 w-10 items-center justify-center rounded-full bg-black/50 text-warmwhite"
+      >
+        <CloseIcon width={22} height={22} />
+      </button>
+      {type === 'image' ? (
+        <motion.img
+          src={url}
+          alt="Attachment"
+          className="max-h-full max-w-full rounded-lg object-contain"
+          initial={{ scale: 0.92, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          onClick={(e) => e.stopPropagation()}
+        />
+      ) : (
+        <motion.video
+          src={url}
+          controls
+          autoPlay
+          playsInline
+          className="max-h-full max-w-full rounded-lg object-contain"
+          initial={{ scale: 0.92, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          onClick={(e) => e.stopPropagation()}
+        />
+      )}
+    </motion.div>
+  );
+}
+
 function DayDivider({ label }: { label: string }) {
   return (
     <div className="my-4 flex items-center justify-center">
@@ -411,11 +463,43 @@ export default function Chat() {
   const customVideoUrl = customVideoCloudUrl || customVideoLocalUrl;
 
   const startCall = useCallStore((s) => s.startCall);
+  const partnerOnline = usePresenceStore((s) => s.partnerOnline);
   const playSound = useSound();
 
   const [text, setText] = useState('');
   const [selectedMsgId, setSelectedMsgId] = useState<string | null>(null);
   const [showWallpaperModal, setShowWallpaperModal] = useState(false);
+  const [viewerMedia, setViewerMedia] = useState<{ url: string; type: 'image' | 'video' } | null>(null);
+
+  // Long-press (touch) or double-click (mouse) to open the reaction picker —
+  // WhatsApp-style. A move beyond a small threshold cancels it, so scrolling
+  // the message list doesn't accidentally trigger it.
+  const pressRef = useRef<{ id: string; timer: number; x: number; y: number } | null>(null);
+  const startPress = (id: string, x: number, y: number) => {
+    pressRef.current = {
+      id,
+      x,
+      y,
+      timer: window.setTimeout(() => {
+        haptic('soft');
+        setSelectedMsgId(id);
+        pressRef.current = null;
+      }, 420),
+    };
+  };
+  const movePress = (x: number, y: number) => {
+    if (!pressRef.current) return;
+    if (Math.hypot(x - pressRef.current.x, y - pressRef.current.y) > 10) {
+      clearTimeout(pressRef.current.timer);
+      pressRef.current = null;
+    }
+  };
+  const cancelPress = () => {
+    if (pressRef.current) {
+      clearTimeout(pressRef.current.timer);
+      pressRef.current = null;
+    }
+  };
 
   // Audio Voice Recorder State
   const [isRecording, setIsRecording] = useState(false);
@@ -574,15 +658,17 @@ export default function Chat() {
                   {partner.initial}
                 </div>
               )}
-              <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full bg-emerald-500 ring-2 ring-[#1f2c34]" />
+              {partnerOnline && (
+                <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full bg-emerald-500 ring-2 ring-[#1f2c34]" />
+              )}
             </div>
 
             <div>
               <h2 className="font-display text-base font-bold leading-tight text-warmwhite">
                 {partner.nickname}
               </h2>
-              <p className="text-[0.68rem] text-emerald-400">
-                {partnerTyping ? 'typing…' : 'online ♥'}
+              <p className={cn('text-[0.68rem]', partnerOnline ? 'text-emerald-400' : 'text-white/40')}>
+                {partnerTyping ? 'typing…' : partnerOnline ? 'online ♥' : 'offline'}
               </p>
             </div>
           </div>
@@ -663,32 +749,49 @@ export default function Chat() {
                     initial={{ opacity: 0, scale: 0.95, y: 8 }}
                     animate={{ opacity: 1, scale: 1, y: 0 }}
                     onDoubleClick={() => setSelectedMsgId(m.id)}
+                    onPointerDown={(e) => startPress(m.id, e.clientX, e.clientY)}
+                    onPointerMove={(e) => movePress(e.clientX, e.clientY)}
+                    onPointerUp={cancelPress}
+                    onPointerLeave={cancelPress}
+                    onPointerCancel={cancelPress}
+                    onContextMenu={(e) => e.preventDefault()}
                     className={cn(
-                      'relative max-w-[82%] px-3.5 py-2 text-sm shadow-md transition-all',
+                      'relative max-w-[82%] px-3.5 py-2 text-sm shadow-md transition-all [touch-action:pan-y]',
                       isMe
                         ? 'rounded-2xl rounded-tr-xs bg-[#005c4b] text-warmwhite shadow-[0_1px_2px_rgba(0,0,0,0.3)]'
                         : 'rounded-2xl rounded-tl-xs bg-[#202c33] text-warmwhite shadow-[0_1px_2px_rgba(0,0,0,0.3)]',
                     )}
                   >
-                    {/* Media Image / Video Attachment */}
+                    {/* Media Image / Video Attachment — tap to open full-screen viewer */}
                     {m.mediaUrl && m.mediaType === 'image' && (
-                      <div className="mb-1.5 overflow-hidden rounded-2xl border border-white/10">
+                      <button
+                        type="button"
+                        aria-label="View image"
+                        onClick={() => setViewerMedia({ url: m.mediaUrl!, type: 'image' })}
+                        className="tap mb-1.5 block w-full overflow-hidden rounded-2xl border border-white/10"
+                      >
                         <img
                           src={m.mediaUrl}
                           alt="Attachment"
                           className="max-h-60 w-full object-cover"
                           loading="lazy"
                         />
-                      </div>
+                      </button>
                     )}
                     {m.mediaUrl && m.mediaType === 'video' && (
-                      <div className="mb-1.5 overflow-hidden rounded-2xl border border-white/10">
-                        <video
-                          src={m.mediaUrl}
-                          controls
-                          className="max-h-60 w-full object-cover"
-                        />
-                      </div>
+                      <button
+                        type="button"
+                        aria-label="View video"
+                        onClick={() => setViewerMedia({ url: m.mediaUrl!, type: 'video' })}
+                        className="tap group/video relative mb-1.5 block w-full overflow-hidden rounded-2xl border border-white/10"
+                      >
+                        <video src={m.mediaUrl} className="max-h-60 w-full object-cover" preload="metadata" />
+                        <span className="absolute inset-0 flex items-center justify-center bg-black/20 transition-colors group-hover/video:bg-black/30">
+                          <span className="flex h-12 w-12 items-center justify-center rounded-full bg-black/50 text-2xl text-warmwhite">
+                            ▶
+                          </span>
+                        </span>
+                      </button>
                     )}
 
                     {/* Audio Voice Note Bubble */}
@@ -824,6 +927,16 @@ export default function Chat() {
 
       <AnimatePresence>
         {showWallpaperModal && <WallpaperModal onClose={() => setShowWallpaperModal(false)} />}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {viewerMedia && (
+          <MediaViewerModal
+            url={viewerMedia.url}
+            type={viewerMedia.type}
+            onClose={() => setViewerMedia(null)}
+          />
+        )}
       </AnimatePresence>
     </PageShell>
   );

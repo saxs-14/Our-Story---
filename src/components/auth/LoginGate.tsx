@@ -94,20 +94,19 @@ export function LoginGate() {
                 </p>
               </div>
               <input
-                type="text"
+                type="date"
                 autoFocus
                 value={pw}
                 onChange={(e) => { setPw(e.target.value); setError(false); }}
-                placeholder={picked === 'her' ? '06 August 2003 or 06/08/2003' : '14 June 2005 or 14/06/2005'}
-                aria-label="Password date"
+                aria-label="Enter your secret date"
                 aria-invalid={error}
-                className="w-full rounded-2xl bg-warmwhite/70 px-4 py-3 text-center text-base tracking-wider text-[color:var(--ink-strong)] placeholder:text-[color:var(--ink-soft)]/60 focus:outline-none focus:ring-2 focus:ring-rosegold-300"
+                min="1970-01-01"
+                max="2099-12-31"
+                className="w-full rounded-2xl bg-warmwhite/70 px-4 py-3 text-center text-base tracking-wider text-[color:var(--ink-strong)] [color-scheme:light] focus:outline-none focus:ring-2 focus:ring-rosegold-300"
               />
               {error && (
                 <p role="alert" className="mt-2 text-xs text-dustyrose-500">
-                  {picked === 'her'
-                    ? "Hint: Your birthday (06 August 2003) ❄️✨"
-                    : "Hint: Your birthday (14 June 2005) 🔥"}
+                  That date doesn't match. Try again ♥
                 </p>
               )}
               <div className="mt-5 flex flex-wrap gap-2">

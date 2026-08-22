@@ -8,7 +8,8 @@ import { useApplyTheme } from '@/hooks/useApplyTheme';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
 import { setHapticsEnabled } from '@/lib/haptics';
 
-import { useAuthStore } from '@/store/useAuthStore';
+import { useAuthStore, partnerOf } from '@/store/useAuthStore';
+import { usePresenceStore } from '@/store/usePresenceStore';
 import { AuroraBackground } from '@/components/fx/AuroraBackground';
 import { ParticleField } from '@/components/fx/ParticleField';
 import { BottomNav } from '@/components/layout/BottomNav';
@@ -87,6 +88,12 @@ export default function App() {
     touchVisit();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (!userId) return;
+    usePresenceStore.getState().start(userId, partnerOf(userId));
+    return () => usePresenceStore.getState().stop();
+  }, [userId]);
 
   const finishIntro = () => {
     markIntroSeen();
