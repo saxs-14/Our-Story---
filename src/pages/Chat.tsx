@@ -5,8 +5,9 @@ import { useChatStore } from '@/store/useChatStore';
 import { useAuthStore, personById, partnerOf } from '@/store/useAuthStore';
 import { useAppStore, type ChatWallpaperType } from '@/store/useAppStore';
 import { useCallStore } from '@/store/useCallStore';
-import { useContentStore } from '@/store/useContentStore';
+import { useContentStore, getUploadPath } from '@/store/useContentStore';
 import { useMediaUrl } from '@/hooks/useMediaUrl';
+import { saveMedia } from '@/lib/idb';
 import { CloseIcon } from '@/components/icons';
 import { haptic } from '@/lib/haptics';
 import { cn } from '@/lib/cn';
@@ -154,10 +155,15 @@ function VoiceNoteBubble({
 
 /** Chat Wallpaper Customizer Modal */
 function WallpaperModal({ onClose }: { onClose: () => void }) {
+  const userId = useAuthStore((s) => s.userId);
   const chatWallpaper = useAppStore((s) => s.chatWallpaper);
   const setChatWallpaper = useAppStore((s) => s.setChatWallpaper);
-  const setChatCustomMedia = useAppStore((s) => s.setChatCustomMedia);
+  const setChatCustomImage = useAppStore((s) => s.setChatCustomImage);
+  const setChatCustomVideo = useAppStore((s) => s.setChatCustomVideo);
+  const uploadMedia = useContentStore((s) => s.uploadMedia);
   const [videoInput, setVideoInput] = useState('');
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [uploadingVideo, setUploadingVideo] = useState(false);
 
   const PRESETS: { type: ChatWallpaperType; label: string; preview: string }[] = [
     { type: 'doodle', label: 'WhatsApp Doodle', preview: 'bg-[#0b141a]' },
@@ -238,27 +244,77 @@ function WallpaperModal({ onClose }: { onClose: () => void }) {
             accept="image/*"
             id="chat-bg-file"
             className="hidden"
-            onChange={(e) => {
+            disabled={uploadingImage}
+            onChange={async (e) => {
               const file = e.target.files?.[0];
-              if (file) {
-                const url = URL.createObjectURL(file);
+              e.target.value = '';
+              if (!file || !userId) return;
+              setUploadingImage(true);
+              haptic('tap');
+              try {
+                // Save locally first (IndexedDB) so the wallpaper shows instantly
+                // and survives reload even before the cloud upload finishes.
+                const record = await saveMedia(file, file.name);
+                setChatCustomImage(record.id, null);
+                const url = await uploadMedia(file, getUploadPath(userId, file.name));
+                if (url) setChatCustomImage(record.id, url);
                 haptic('success');
-                setChatCustomMedia('image', url);
+              } finally {
+                setUploadingImage(false);
               }
             }}
           />
           <label
             htmlFor="chat-bg-file"
-            className="tap flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl border border-dashed border-rosegold-400/40 bg-rosegold-500/10 p-3 text-xs text-warmwhite hover:bg-rosegold-500/20"
+            className={cn(
+              'tap flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl border border-dashed border-rosegold-400/40 bg-rosegold-500/10 p-3 text-xs text-warmwhite hover:bg-rosegold-500/20',
+              uploadingImage && 'pointer-events-none opacity-60',
+            )}
           >
-            📷 Upload Image as Chat Background
+            {uploadingImage ? 'Uploading…' : '📷 Upload Image as Chat Background'}
           </label>
         </div>
 
-        {/* Custom Video Background URL */}
+        {/* Custom Video Upload */}
         <label className="mb-2 block text-xs uppercase tracking-luxe text-rosegold-400">
-          Custom Video Background (Direct MP4 URL)
+          Custom Video Background
         </label>
+        <div className="mb-2">
+          <input
+            type="file"
+            accept="video/*"
+            id="chat-bg-video-file"
+            className="hidden"
+            disabled={uploadingVideo}
+            onChange={async (e) => {
+              const file = e.target.files?.[0];
+              e.target.value = '';
+              if (!file || !userId) return;
+              setUploadingVideo(true);
+              haptic('tap');
+              try {
+                const record = await saveMedia(file, file.name);
+                setChatCustomVideo(record.id, null);
+                const url = await uploadMedia(file, getUploadPath(userId, file.name));
+                if (url) setChatCustomVideo(record.id, url);
+                haptic('success');
+              } finally {
+                setUploadingVideo(false);
+              }
+            }}
+          />
+          <label
+            htmlFor="chat-bg-video-file"
+            className={cn(
+              'tap flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl border border-dashed border-rosegold-400/40 bg-rosegold-500/10 p-3 text-xs text-warmwhite hover:bg-rosegold-500/20',
+              uploadingVideo && 'pointer-events-none opacity-60',
+            )}
+          >
+            {uploadingVideo ? 'Uploading…' : '🎬 Upload Video as Chat Background'}
+          </label>
+        </div>
+
+        <p className="mb-2 text-center text-[0.65rem] uppercase tracking-luxe text-rosegold-400/60">or paste a hosted URL</p>
         <div className="flex gap-2">
           <input
             value={videoInput}
@@ -271,11 +327,11 @@ function WallpaperModal({ onClose }: { onClose: () => void }) {
             onClick={() => {
               if (videoInput.trim()) {
                 haptic('success');
-                setChatCustomMedia('video', videoInput.trim());
+                setChatCustomVideo(null, videoInput.trim());
                 setVideoInput('');
               }
             }}
-            className="tap rounded-2xl bg-rosegold-500 px-3 py-2 text-xs font-semibold text-warmwhite"
+            className="tap shrink-0 whitespace-nowrap rounded-2xl bg-rosegold-500 px-3 py-2 text-xs font-semibold text-warmwhite"
           >
             Apply
           </button>
@@ -342,8 +398,17 @@ export default function Chat() {
   } = useChatStore();
 
   const chatWallpaper = useAppStore((s) => s.chatWallpaper);
-  const customImageUrl = useAppStore((s) => s.chatCustomImageUrl);
-  const customVideoUrl = useAppStore((s) => s.chatCustomVideoUrl);
+  const customImageCloudUrl = useAppStore((s) => s.chatCustomImageUrl);
+  const customImageMediaId = useAppStore((s) => s.chatCustomImageMediaId);
+  const customVideoCloudUrl = useAppStore((s) => s.chatCustomVideoUrl);
+  const customVideoMediaId = useAppStore((s) => s.chatCustomVideoMediaId);
+  const customImageLocalUrl = useMediaUrl(customImageMediaId);
+  const customVideoLocalUrl = useMediaUrl(customVideoMediaId);
+  // Cloud (Firebase Storage) URL wins once available — durable across
+  // reloads and visible to both partners. Local IndexedDB blob covers the
+  // gap before the upload finishes, or when Firebase isn't configured.
+  const customImageUrl = customImageCloudUrl || customImageLocalUrl;
+  const customVideoUrl = customVideoCloudUrl || customVideoLocalUrl;
 
   const startCall = useCallStore((s) => s.startCall);
   const playSound = useSound();

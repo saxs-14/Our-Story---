@@ -35,6 +35,11 @@ export function CallModal() {
   const userId = useAuthStore((s) => s.userId);
   const playSound = useSound();
 
+  const partnerId = userId ? partnerOf(userId) : 'her';
+  const partner = personById(partnerId);
+  const partnerPhotoId = useContentStore((s) => s.profiles[partnerId]?.photoMediaId);
+  const partnerAvatarUrl = useMediaUrl(partnerPhotoId);
+
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
 
@@ -70,10 +75,6 @@ export function CallModal() {
   }, [callState, playSound]);
 
   if (callState === 'idle') return null;
-
-  const partnerId = userId ? partnerOf(userId) : 'her';
-  const partner = personById(partnerId);
-  const partnerPhotoId = useContentStore.getState().profiles[partnerId]?.photoMediaId;
 
   return (
     <AnimatePresence>
@@ -137,9 +138,9 @@ export function CallModal() {
 
               {/* Avatar circle */}
               <div className="relative flex h-32 w-32 items-center justify-center overflow-hidden rounded-full border-2 border-rosegold-400 bg-gradient-to-br from-[#b76e79] to-[#580816] shadow-[0_0_35px_rgba(227,70,95,0.5)]">
-                {partnerPhotoId ? (
+                {partnerAvatarUrl ? (
                   <img
-                    src={useMediaUrl(partnerPhotoId) || ''}
+                    src={partnerAvatarUrl}
                     alt={partner.name}
                     className="h-full w-full object-cover"
                   />

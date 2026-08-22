@@ -490,11 +490,11 @@ export default function Garden() {
             </div>
 
             {/* Watering Action Bar */}
-            <div className="mt-6 flex items-center gap-3">
-              <Button variant="gold" size="lg" className="flex-1 shadow-lg" onClick={doWater}>
+            <div className="mt-6 flex flex-wrap items-center gap-3">
+              <Button variant="gold" size="lg" className="min-w-0 flex-1 shadow-lg" onClick={doWater}>
                 💧 Water Our Garden
               </Button>
-              <div className="rounded-2xl bg-white/10 px-4 py-2 text-center text-xs text-warmwhite">
+              <div className="shrink-0 rounded-2xl bg-white/10 px-4 py-2 text-center text-xs text-warmwhite">
                 <span className="font-bold text-rosegold-400">{waterCount}×</span>
                 <p className="text-[0.55rem] uppercase text-rosegold-200/70">Waters given</p>
               </div>

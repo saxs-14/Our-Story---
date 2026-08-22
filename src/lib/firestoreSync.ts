@@ -10,6 +10,7 @@ import {
   deleteDoc,
   collection,
   getDocs,
+  getDoc,
 } from 'firebase/firestore';
 import { db, FIREBASE_CONFIGURED } from '@/lib/firebase';
 import type { UserLetter, UserDream, UserMemory, GalleryItem } from '@/store/useContentStore';
@@ -27,7 +28,9 @@ async function removeDoc(col: string, id: string): Promise<void> {
   if (!FIREBASE_CONFIGURED || !db) return;
   try {
     await deleteDoc(doc(db, col, id));
-  } catch {}
+  } catch {
+    // Firestore IndexedDB persistence queues this and syncs when back online
+  }
 }
 
 /** Fetch all documents from a Firestore collection (used on first login). */
@@ -38,6 +41,27 @@ export async function pullCollection<T>(col: string): Promise<T[]> {
     return snap.docs.map((d) => d.data() as T);
   } catch {
     return [];
+  }
+}
+
+/** Overwrite a single shared Firestore document (settings/progress-style state). */
+export async function syncSingleDoc(col: string, id: string, data: object): Promise<void> {
+  if (!FIREBASE_CONFIGURED || !db) return;
+  try {
+    await setDoc(doc(db, col, id), data);
+  } catch {
+    // Firestore IndexedDB persistence queues this and syncs when back online
+  }
+}
+
+/** Fetch a single shared Firestore document, or null when absent/offline. */
+export async function pullSingleDoc<T>(col: string, id: string): Promise<T | null> {
+  if (!FIREBASE_CONFIGURED || !db) return null;
+  try {
+    const snap = await getDoc(doc(db, col, id));
+    return snap.exists() ? (snap.data() as T) : null;
+  } catch {
+    return null;
   }
 }
 

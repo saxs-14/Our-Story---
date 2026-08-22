@@ -132,8 +132,14 @@ export const useAuthStore = create<AuthState>()(
       login: async (userId) => {
         set({ userId });
         await signIntoFirebase(userId);
-        const { useContentStore } = await import('@/store/useContentStore');
+        const [{ useContentStore }, { useProgressStore }, { useAppStore }] = await Promise.all([
+          import('@/store/useContentStore'),
+          import('@/store/useProgressStore'),
+          import('@/store/useAppStore'),
+        ]);
         void useContentStore.getState().pullFromFirestore();
+        void useProgressStore.getState().pullFromFirestore();
+        void useAppStore.getState().pullWallpaperFromFirestore();
       },
 
       logout: async () => {
@@ -147,6 +153,11 @@ export const useAuthStore = create<AuthState>()(
       name: 'our-story:auth',
       storage: createJSONStorage(() => localStorage),
       version: 3,
+      // Without this, zustand refuses to load any persisted state whose
+      // version doesn't match and silently resets to defaults (userId: null)
+      // — i.e. every version bump would log everyone out. Login state has
+      // no shape that needs transforming between versions, so just pass it through.
+      migrate: (persisted) => persisted as AuthState,
     },
   ),
 );

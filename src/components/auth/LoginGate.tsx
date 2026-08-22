@@ -110,11 +110,11 @@ export function LoginGate() {
                     : "Hint: Your birthday (14 June 2005) 🔥"}
                 </p>
               )}
-              <div className="mt-5 flex gap-2">
+              <div className="mt-5 flex flex-wrap gap-2">
                 <Button type="button" variant="ghost" onClick={() => { setPicked(null); setPw(''); setError(false); }}>
                   Back
                 </Button>
-                <Button type="submit" variant="primary" className="flex-1">
+                <Button type="submit" variant="primary" className="min-w-0 flex-1">
                   Enter Our World ♥
                 </Button>
               </div>

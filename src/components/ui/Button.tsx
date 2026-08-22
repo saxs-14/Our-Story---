@@ -36,7 +36,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         onClick?.(e);
       }}
       className={cn(
-        'tap inline-flex items-center justify-center gap-2 rounded-full font-medium tracking-wide',
+        'tap inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-full font-medium tracking-wide',
         'transition-colors duration-200 ease-silk focus-visible:outline-none disabled:opacity-50 disabled:pointer-events-none',
         VARIANTS[variant],
         SIZES[size],

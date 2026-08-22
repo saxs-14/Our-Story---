@@ -214,6 +214,9 @@ export const useContentStore = create<ContentState>()(
       name: 'our-story:content',
       storage: createJSONStorage(() => localStorage),
       version: 3,
+      // See useAuthStore.ts — without a migrate fn, a version bump with no
+      // matching persisted version silently wipes this store back to empty.
+      migrate: (persisted) => persisted as ContentState,
     },
   ),
 );

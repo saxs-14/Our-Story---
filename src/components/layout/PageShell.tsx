@@ -24,7 +24,13 @@ export function PageShell({ eyebrow, title, subtitle, children, bleed, className
       exit={{ opacity: 0, y: reduce ? 0 : -12 }}
       transition={{ duration: reduce ? 0.2 : 0.5, ease: [0.22, 1, 0.36, 1] }}
     >
-      <div className={cn(bleed ? 'w-full' : 'mx-auto w-full max-w-2xl px-5')}>
+      <div
+        className={cn(
+          bleed
+            ? 'w-full lg:mx-auto lg:max-w-3xl'
+            : 'mx-auto w-full max-w-2xl px-5 lg:max-w-3xl lg:px-8 xl:max-w-4xl',
+        )}
+      >
         {(eyebrow || title || subtitle) && (
           <header className={cn('mb-7', bleed && 'px-5')}>
             {eyebrow && (
@@ -33,12 +39,12 @@ export function PageShell({ eyebrow, title, subtitle, children, bleed, className
               </p>
             )}
             {title && (
-              <h1 className="font-display text-4xl font-medium text-[color:var(--ink-strong)] sm:text-5xl">
+              <h1 className="font-display text-4xl font-medium text-[color:var(--ink-strong)] sm:text-5xl lg:text-6xl">
                 {title}
               </h1>
             )}
             {subtitle && (
-              <p className="mt-2 max-w-prose text-[color:var(--ink-soft)]">{subtitle}</p>
+              <p className="mt-2 max-w-prose text-[color:var(--ink-soft)] lg:text-lg">{subtitle}</p>
             )}
           </header>
         )}

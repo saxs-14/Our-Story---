@@ -6,6 +6,40 @@ interface RoseAnimationProps {
   stage: number; // 0: seed, 1: stem/leaves, 2: tight bud, 3: blooming, 4: majestic full bloom
 }
 
+/**
+ * Real rose petals are never identical twins — each one differs slightly in
+ * size, curl and lean. These hand-tuned per-petal offsets (not Math.random,
+ * so the bloom never reshuffles between renders) break the perfectly radial
+ * "computed" symmetry that reads as fake, and the per-petal translateZ gives
+ * genuine depth instead of relying on rotateX foreshortening alone.
+ */
+const OUTER_JITTER = [
+  { scale: 1, rotateY: -7, tilt: -2, z: 10 },
+  { scale: 0.9, rotateY: 5, tilt: 3, z: -8 },
+  { scale: 1.08, rotateY: -4, tilt: -1, z: 14 },
+  { scale: 0.94, rotateY: 8, tilt: 4, z: -6 },
+  { scale: 1.05, rotateY: -6, tilt: -3, z: 8 },
+  { scale: 0.88, rotateY: 3, tilt: 2, z: -10 },
+];
+const MID_JITTER = [
+  { scale: 1.06, rotateY: 6, tilt: 2, z: 7 },
+  { scale: 0.92, rotateY: -5, tilt: -2, z: -6 },
+  { scale: 1, rotateY: 7, tilt: 3, z: 9 },
+  { scale: 0.95, rotateY: -8, tilt: -3, z: -5 },
+  { scale: 1.04, rotateY: 4, tilt: 1, z: 6 },
+  { scale: 0.9, rotateY: -6, tilt: -2, z: -8 },
+];
+const INNER_JITTER = [
+  { scale: 1.05, rotateY: -5, tilt: -2, z: 5 },
+  { scale: 0.93, rotateY: 6, tilt: 2, z: -4 },
+  { scale: 1, rotateY: -3, tilt: 1, z: 6 },
+  { scale: 0.96, rotateY: 5, tilt: -1, z: -5 },
+  { scale: 1.03, rotateY: -6, tilt: 2, z: 4 },
+  { scale: 0.91, rotateY: 4, tilt: -2, z: -6 },
+];
+/** Natural, slightly-overshooting spring — reads as physical motion, not eased CSS. */
+const BLOOM_SPRING = { type: 'spring' as const, stiffness: 110, damping: 13, mass: 1 };
+
 export function RoseAnimation({ stage }: RoseAnimationProps) {
   const reduce = useReducedMotion();
 
@@ -136,124 +170,129 @@ export function RoseAnimation({ stage }: RoseAnimationProps) {
           <div className="relative top-[-36px] flex h-48 w-48 items-center justify-center [transform-style:preserve-3d]">
             {/* Green Sepals (Calyx) that peel back when blooming */}
             <div className="absolute inset-0 flex items-center justify-center [transform-style:preserve-3d]">
-              {[0, 72, 144, 216, 288].map((angle, i) => (
-                <motion.div
-                  key={`sepal-${i}`}
-                  className="absolute bottom-1/2 h-14 w-4 origin-bottom rounded-[50%_50%_0_0] bg-gradient-to-t from-[#2e7d32] to-[#1b5e20] shadow-sm"
-                  style={{
-                    transform: `rotate(${angle}deg) rotateX(${
-                      stage >= 3 ? 75 : stage === 2 ? 30 : 0
-                    }deg)`,
-                  }}
-                  animate={{
-                    rotateX: stage >= 3 ? 75 : stage === 2 ? 30 : 10,
-                  }}
-                  transition={{ duration: 1.5, ease: [0.22, 1, 0.36, 1] }}
-                />
-              ))}
+              {[0, 72, 144, 216, 288].map((angle, i) => {
+                const tilt = [-3, 2, -2, 4, -1][i];
+                return (
+                  <motion.div
+                    key={`sepal-${i}`}
+                    className="absolute bottom-1/2 h-14 w-4 origin-bottom rounded-[50%_50%_0_0] bg-gradient-to-t from-[#2e7d32] to-[#1b5e20] shadow-sm"
+                    initial={{ rotateX: 0 }}
+                    animate={{
+                      rotate: angle + tilt,
+                      rotateX: stage >= 3 ? 75 + tilt : stage === 2 ? 30 : 10,
+                    }}
+                    transition={{ ...BLOOM_SPRING, delay: i * 0.05 }}
+                  />
+                );
+              })}
             </div>
 
             {/* LAYER 1: Outermost Large Velvet Petals (Unfurl Wide in 3D) */}
             {stage >= 2 && (
               <div className="absolute inset-0 flex items-center justify-center [transform-style:preserve-3d]">
-                {[0, 60, 120, 180, 240, 300].map((angle, i) => (
-                  <motion.div
-                    key={`outer-${i}`}
-                    className="absolute h-24 w-20 origin-bottom rounded-[50%_50%_50%_50%/65%_65%_35%_35%] shadow-[inset_0_-8px_15px_rgba(0,0,0,0.5),0_6px_15px_rgba(136,14,35,0.4)]"
-                    style={{
-                      background:
-                        'radial-gradient(circle at 50% 25%, #ff2a55 0%, #b70932 45%, #6a001a 85%, #3d000f 100%)',
-                    }}
-                    initial={{
-                      transform: `rotate(${angle}deg) rotateX(10deg) scale(0.6)`,
-                      opacity: 0.8,
-                    }}
-                    animate={{
-                      transform:
-                        stage >= 4
-                          ? `rotate(${angle}deg) rotateX(62deg) translateY(-8px) scale(1.18)`
-                          : stage === 3
-                          ? `rotate(${angle}deg) rotateX(45deg) scale(1)`
-                          : `rotate(${angle}deg) rotateX(20deg) scale(0.75)`,
-                      opacity: 1,
-                    }}
-                    transition={{
-                      duration: 1.8,
-                      delay: i * 0.06,
-                      ease: [0.22, 1, 0.36, 1],
-                    }}
-                  >
-                    {/* Petal velvet texture sheen */}
-                    <div className="absolute inset-0 rounded-[inherit] bg-gradient-to-t from-transparent via-white/10 to-rose-200/20 opacity-70" />
-                    {/* Crystal Dewdrop on outer petal */}
-                    {i % 2 === 0 && (
-                      <div className="absolute left-6 top-4 h-2 w-2 rounded-full bg-white/90 shadow-[0_0_4px_rgba(255,255,255,0.9)]" />
-                    )}
-                  </motion.div>
-                ))}
+                {[0, 60, 120, 180, 240, 300].map((angle, i) => {
+                  const j = OUTER_JITTER[i];
+                  const rot = angle + j.tilt;
+                  const xf = (rx: number, sc: number, ty: number) =>
+                    `rotate(${rot}deg) rotateY(${j.rotateY}deg) rotateX(${rx}deg) translateZ(${j.z}px) translateY(${ty}px) scale(${(sc * j.scale).toFixed(3)})`;
+                  return (
+                    <motion.div
+                      key={`outer-${i}`}
+                      className="absolute h-24 w-20 origin-bottom rounded-[50%_50%_50%_50%/65%_65%_35%_35%] shadow-[inset_0_-8px_15px_rgba(0,0,0,0.5),0_6px_15px_rgba(136,14,35,0.4)]"
+                      style={{
+                        background:
+                          'radial-gradient(circle at 50% 25%, #ff2a55 0%, #b70932 45%, #6a001a 85%, #3d000f 100%)',
+                      }}
+                      initial={{ transform: xf(10, 0.6, 0), opacity: 0.8 }}
+                      animate={{
+                        transform:
+                          stage >= 4
+                            ? xf(60 + j.tilt, 1.18, -8)
+                            : stage === 3
+                            ? xf(43, 1, 0)
+                            : xf(20, 0.75, 0),
+                        opacity: 1,
+                      }}
+                      transition={{
+                        transform: { ...BLOOM_SPRING, delay: i * 0.07 },
+                        opacity: { duration: 0.7, delay: i * 0.07 },
+                      }}
+                    >
+                      {/* Petal velvet texture sheen */}
+                      <div className="absolute inset-0 rounded-[inherit] bg-gradient-to-t from-transparent via-white/10 to-rose-200/20 opacity-70" />
+                      {/* Crystal Dewdrop on outer petal */}
+                      {i % 2 === 0 && (
+                        <div className="absolute left-6 top-4 h-2 w-2 rounded-full bg-white/90 shadow-[0_0_4px_rgba(255,255,255,0.9)]" />
+                      )}
+                    </motion.div>
+                  );
+                })}
               </div>
             )}
 
             {/* LAYER 2: Middle Blooming Petals (Curved in 3D) */}
             {stage >= 2 && (
               <div className="absolute inset-0 flex items-center justify-center [transform-style:preserve-3d]">
-                {[30, 90, 150, 210, 270, 330].map((angle, i) => (
-                  <motion.div
-                    key={`mid-${i}`}
-                    className="absolute h-20 w-16 origin-bottom rounded-[50%_50%_50%_50%/60%_60%_40%_40%] shadow-[inset_0_-6px_12px_rgba(0,0,0,0.6),0_4px_12px_rgba(136,14,35,0.5)]"
-                    style={{
-                      background:
-                        'radial-gradient(circle at 45% 20%, #ff3b68 0%, #c21840 40%, #7e0420 80%, #4a0011 100%)',
-                    }}
-                    initial={{
-                      transform: `rotate(${angle}deg) rotateX(5deg) scale(0.5)`,
-                    }}
-                    animate={{
-                      transform:
-                        stage >= 4
-                          ? `rotate(${angle}deg) rotateX(48deg) translateY(-5px) scale(1.08)`
-                          : stage === 3
-                          ? `rotate(${angle}deg) rotateX(32deg) scale(0.9)`
-                          : `rotate(${angle}deg) rotateX(15deg) scale(0.7)`,
-                    }}
-                    transition={{
-                      duration: 1.6,
-                      delay: 0.2 + i * 0.05,
-                      ease: [0.22, 1, 0.36, 1],
-                    }}
-                  >
-                    <div className="absolute inset-0 rounded-[inherit] bg-gradient-to-tr from-transparent via-rose-300/15 to-transparent" />
-                  </motion.div>
-                ))}
+                {[30, 90, 150, 210, 270, 330].map((angle, i) => {
+                  const j = MID_JITTER[i];
+                  const rot = angle + j.tilt;
+                  const xf = (rx: number, sc: number, ty: number) =>
+                    `rotate(${rot}deg) rotateY(${j.rotateY}deg) rotateX(${rx}deg) translateZ(${j.z}px) translateY(${ty}px) scale(${(sc * j.scale).toFixed(3)})`;
+                  return (
+                    <motion.div
+                      key={`mid-${i}`}
+                      className="absolute h-20 w-16 origin-bottom rounded-[50%_50%_50%_50%/60%_60%_40%_40%] shadow-[inset_0_-6px_12px_rgba(0,0,0,0.6),0_4px_12px_rgba(136,14,35,0.5)]"
+                      style={{
+                        background:
+                          'radial-gradient(circle at 45% 20%, #ff3b68 0%, #c21840 40%, #7e0420 80%, #4a0011 100%)',
+                      }}
+                      initial={{ transform: xf(5, 0.5, 0) }}
+                      animate={{
+                        transform:
+                          stage >= 4
+                            ? xf(46 + j.tilt, 1.08, -5)
+                            : stage === 3
+                            ? xf(30, 0.9, 0)
+                            : xf(15, 0.7, 0),
+                      }}
+                      transition={{ ...BLOOM_SPRING, delay: 0.18 + i * 0.06 }}
+                    >
+                      <div className="absolute inset-0 rounded-[inherit] bg-gradient-to-tr from-transparent via-rose-300/15 to-transparent" />
+                    </motion.div>
+                  );
+                })}
               </div>
             )}
 
             {/* LAYER 3: Inner Velvet Swirl Petals */}
             {stage >= 2 && (
               <div className="absolute inset-0 flex items-center justify-center [transform-style:preserve-3d]">
-                {[15, 75, 135, 195, 255, 315].map((angle, i) => (
-                  <motion.div
-                    key={`inner-${i}`}
-                    className="absolute h-16 w-12 origin-bottom rounded-[50%_50%_50%_50%/60%_60%_40%_40%] shadow-[inset_0_-4px_10px_rgba(0,0,0,0.7)]"
-                    style={{
-                      background:
-                        'radial-gradient(circle at 50% 15%, #ff5277 0%, #d81b47 45%, #8e0024 85%, #580014 100%)',
-                    }}
-                    animate={{
-                      transform:
-                        stage >= 4
-                          ? `rotate(${angle}deg) rotateX(32deg) scale(1)`
-                          : stage === 3
-                          ? `rotate(${angle}deg) rotateX(20deg) scale(0.85)`
-                          : `rotate(${angle}deg) rotateX(10deg) scale(0.65)`,
-                    }}
-                    transition={{
-                      duration: 1.4,
-                      delay: 0.4 + i * 0.04,
-                      ease: [0.22, 1, 0.36, 1],
-                    }}
-                  />
-                ))}
+                {[15, 75, 135, 195, 255, 315].map((angle, i) => {
+                  const j = INNER_JITTER[i];
+                  const rot = angle + j.tilt;
+                  const xf = (rx: number, sc: number) =>
+                    `rotate(${rot}deg) rotateY(${j.rotateY}deg) rotateX(${rx}deg) translateZ(${j.z}px) scale(${(sc * j.scale).toFixed(3)})`;
+                  return (
+                    <motion.div
+                      key={`inner-${i}`}
+                      className="absolute h-16 w-12 origin-bottom rounded-[50%_50%_50%_50%/60%_60%_40%_40%] shadow-[inset_0_-4px_10px_rgba(0,0,0,0.7)]"
+                      style={{
+                        background:
+                          'radial-gradient(circle at 50% 15%, #ff5277 0%, #d81b47 45%, #8e0024 85%, #580014 100%)',
+                      }}
+                      initial={{ transform: xf(4, 0.4) }}
+                      animate={{
+                        transform:
+                          stage >= 4
+                            ? xf(30 + j.tilt, 1)
+                            : stage === 3
+                            ? xf(19, 0.85)
+                            : xf(9, 0.65),
+                      }}
+                      transition={{ ...BLOOM_SPRING, delay: 0.34 + i * 0.05 }}
+                    />
+                  );
+                })}
               </div>
             )}
 

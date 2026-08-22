@@ -275,6 +275,9 @@ export const useChatStore = create<ChatState>()(
       storage: createJSONStorage(() => localStorage),
       version: 2,
       partialize: (s) => ({ messages: s.messages.slice(-80) }),
+      // See useAuthStore.ts — without a migrate fn, a version bump with no
+      // matching persisted version silently wipes this store back to empty.
+      migrate: (persisted) => persisted as Partial<ChatState>,
     },
   ),
 );
