@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/Button';
 import { useAppStore, type MotionPref, type ThemeName } from '@/store/useAppStore';
 import { useProgressStore } from '@/store/useProgressStore';
 import { useAuthStore, personById } from '@/store/useAuthStore';
-import { isPushSupported, currentNotificationPermission, enablePushNotifications } from '@/lib/push';
+import { isPushSupported, checkNotificationPermission, enablePushNotifications } from '@/lib/push';
 import relationship from '@/config/relationship';
 import { formatLongDate } from '@/lib/time';
 import { cn } from '@/lib/cn';
@@ -61,7 +61,7 @@ export default function Settings() {
   useEffect(() => {
     isPushSupported().then(async (supported) => {
       if (!supported) return setPushState('unsupported');
-      const perm = currentNotificationPermission();
+      const perm = await checkNotificationPermission();
       if (perm === 'granted' && userId) {
         // Permission was already granted (e.g. a prior session) but that
         // doesn't mean a token was ever registered/saved — getToken() is a

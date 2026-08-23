@@ -50,7 +50,8 @@ export interface ChatMessage {
   read: boolean;
   replyTo?: ReplyPreview;
   isCallEvent?: boolean; // missed/completed call summary — rendered as a centered pill, not a bubble
-  local?: boolean; // optimistic / unsent
+  local?: boolean; // optimistic echo — not a real Firestore doc yet
+  pending?: boolean; // real Firestore doc, but not yet acknowledged by the server (offline/in-flight)
 }
 
 export type PartnerActivity = 'typing' | 'recording' | null;
@@ -142,7 +143,15 @@ export const useChatStore = create<ChatState>()(
           limit(MESSAGES_LIMIT),
         );
 
-        const unsubMessages = onSnapshot(q, (snapshot) => {
+        // includeMetadataChanges so a write's hasPendingWrites flag flipping
+        // from true -> false (local cache -> actually acknowledged by the
+        // server) re-fires this listener even though the document's own
+        // fields didn't change — that transition is exactly what "really
+        // sent" means, and it's Firestore's own signal for it rather than a
+        // guess based on how long addDoc() took to resolve (which, with
+        // offline persistence enabled, can resolve from the local cache
+        // alone and not actually reflect server delivery).
+        const unsubMessages = onSnapshot(q, { includeMetadataChanges: true }, (snapshot) => {
           const msgs: ChatMessage[] = snapshot.docs.map((d) => {
             const data = d.data();
             const ts = data.timestamp as Timestamp | null;
@@ -159,6 +168,7 @@ export const useChatStore = create<ChatState>()(
               read: data.read ?? false,
               replyTo: data.replyTo ?? undefined,
               isCallEvent: data.isCallEvent ?? false,
+              pending: d.metadata.hasPendingWrites,
             };
           });
 

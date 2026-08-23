@@ -456,13 +456,59 @@ function DayDivider({ label }: { label: string }) {
  * Reflects live presence rather than a persisted delivery receipt, matching
  * how this app already tracks online/offline elsewhere.
  */
+/**
+ * A small gold/rosegold spinning ring — shown in place of a tick while a
+ * message is still in flight. Reuses the app's own luxury palette (the same
+ * tones as the "gold" button gradient) rather than a generic grey spinner,
+ * so "sending" still feels like part of this app instead of a browser default.
+ *
+ * Plain CSS animation (Tailwind's animate-spin), not framer-motion — a
+ * framer `animate={{ rotate: ... }} transition={{ repeat: Infinity }}`
+ * version of this reliably froze at the end value with zero running
+ * Web Animations (verified via element.getAnimations() being empty, both
+ * with a single target and with [0, 360] keyframes) when nested inside the
+ * AnimatePresence tick-swap below. Not worth chasing further — CSS keyframe
+ * spin is simpler and has no such ambiguity.
+ */
+function SendingRing() {
+  return (
+    <span
+      aria-label="Sending"
+      title="Sending…"
+      className="inline-block h-[9px] w-[9px] shrink-0 animate-spin rounded-full border-[1.5px] border-white/20"
+      style={{ borderTopColor: '#e8b4c8', borderRightColor: '#d4af7a' }}
+    />
+  );
+}
+
 function MessageTicks({ read, partnerOnline, pending }: { read: boolean; partnerOnline: boolean; pending?: boolean }) {
-  // Still an optimistic local echo — hasn't actually reached Firestore yet
-  // (e.g. sent while offline), so a tick would overclaim delivery.
-  if (pending) return <span className="text-white/40" title="Sending…">🕓</span>;
-  if (read) return <span className="font-bold text-[#53bdeb]" title="Seen">✓✓</span>;
-  if (partnerOnline) return <span className="font-bold text-white/50" title="Delivered">✓✓</span>;
-  return <span className="font-bold text-white/50" title="Sent">✓</span>;
+  return (
+    <AnimatePresence mode="wait" initial={false}>
+      {pending ? (
+        <motion.span
+          key="sending"
+          initial={{ opacity: 0, scale: 0.6 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.6 }}
+          transition={{ duration: 0.18 }}
+        >
+          <SendingRing />
+        </motion.span>
+      ) : (
+        <motion.span
+          key={read ? 'seen' : partnerOnline ? 'delivered' : 'sent'}
+          initial={{ opacity: 0, scale: 0.6 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.6 }}
+          transition={{ duration: 0.18 }}
+          className={cn('font-bold', read ? 'text-[#53bdeb]' : 'text-white/50')}
+          title={read ? 'Seen' : partnerOnline ? 'Delivered' : 'Sent'}
+        >
+          {read || partnerOnline ? '✓✓' : '✓'}
+        </motion.span>
+      )}
+    </AnimatePresence>
+  );
 }
 
 const REPLY_SWIPE_THRESHOLD = 64;
@@ -644,7 +690,7 @@ function MessageBubble({
 
         <div className="mt-1 flex items-center justify-end gap-1 text-[0.62rem] text-white/60">
           <span>{formatTime(m.timestamp)}</span>
-          {isMe && <MessageTicks read={m.read} partnerOnline={partnerOnline} pending={m.local} />}
+          {isMe && <MessageTicks read={m.read} partnerOnline={partnerOnline} pending={m.local || m.pending} />}
         </div>
 
         {m.reactions && Object.keys(m.reactions).length > 0 && (

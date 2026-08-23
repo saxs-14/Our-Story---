@@ -89,6 +89,28 @@ export function currentNotificationPermission(): NotificationPermission | 'unsup
   return Notification.permission;
 }
 
+/**
+ * Platform-aware permission check that never prompts. On native this reads
+ * the real OS permission via @capacitor/push-notifications — the web
+ * `Notification.permission` API doesn't reliably reflect it inside a
+ * Capacitor WebView, which was causing Settings to show "Enable" even when
+ * push was already granted on Android.
+ */
+export async function checkNotificationPermission(): Promise<NotificationPermission | 'unsupported'> {
+  if (isNative()) {
+    try {
+      const { PushNotifications } = await import('@capacitor/push-notifications');
+      const { receive } = await PushNotifications.checkPermissions();
+      if (receive === 'granted') return 'granted';
+      if (receive === 'denied') return 'denied';
+      return 'default';
+    } catch {
+      return 'unsupported';
+    }
+  }
+  return currentNotificationPermission();
+}
+
 /** Request permission, register for push, and save the device token so the
  * other partner's messages/calls can reach this device in the background. */
 export async function enablePushNotifications(
