@@ -128,13 +128,13 @@ function ComposeMoment({ onClose }: { onClose: () => void }) {
         <div className="mb-4 flex items-center justify-between">
           <div>
             <span className="text-xs uppercase tracking-luxe text-rosegold-400">Add to our story</span>
-            <h2 className="font-display text-2xl text-warmwhite">A Moment That Happened</h2>
+            <h2 className="font-display text-2xl text-[color:var(--ink-strong)]">A Moment That Happened</h2>
           </div>
           <button
             type="button"
             aria-label="Close"
             onClick={onClose}
-            className="tap flex h-9 w-9 items-center justify-center rounded-full text-rosegold-300 hover:text-white"
+            className="tap flex h-9 w-9 items-center justify-center rounded-full text-rosegold-400 hover:text-rosegold-600"
           >
             <CloseIcon width={20} height={20} />
           </button>
@@ -146,7 +146,7 @@ function ComposeMoment({ onClose }: { onClose: () => void }) {
           value={date}
           onChange={(e) => setDate(e.target.value)}
           aria-label="Date"
-          className="mb-3 w-full rounded-2xl bg-warmwhite/10 px-4 py-3 text-warmwhite focus:outline-none focus:ring-2 focus:ring-rosegold-400"
+          className="mb-3 w-full rounded-2xl bg-black/5 px-4 py-3 text-[color:var(--ink-strong)] focus:outline-none focus:ring-2 focus:ring-rosegold-400"
         />
 
         <input
@@ -154,7 +154,7 @@ function ComposeMoment({ onClose }: { onClose: () => void }) {
           onChange={(e) => setTitle(e.target.value)}
           placeholder="Title of this special moment…"
           aria-label="Title"
-          className="mb-3 w-full rounded-2xl bg-warmwhite/10 px-4 py-3 font-display text-lg text-warmwhite placeholder:text-rosegold-200/50 focus:outline-none focus:ring-2 focus:ring-rosegold-400"
+          className="mb-3 w-full rounded-2xl bg-black/5 px-4 py-3 font-display text-lg text-[color:var(--ink-strong)] placeholder:text-[color:var(--ink-soft)] focus:outline-none focus:ring-2 focus:ring-rosegold-400"
         />
 
         <textarea
@@ -163,7 +163,7 @@ function ComposeMoment({ onClose }: { onClose: () => void }) {
           rows={3}
           placeholder="Tell the story of what happened between us that day…"
           aria-label="Description"
-          className="mb-3 w-full resize-none rounded-2xl bg-warmwhite/10 p-4 text-warmwhite placeholder:text-rosegold-200/50 focus:outline-none focus:ring-2 focus:ring-rosegold-400"
+          className="mb-3 w-full resize-none rounded-2xl bg-black/5 p-4 text-[color:var(--ink-strong)] placeholder:text-[color:var(--ink-soft)] focus:outline-none focus:ring-2 focus:ring-rosegold-400"
         />
 
         <input
@@ -171,7 +171,7 @@ function ComposeMoment({ onClose }: { onClose: () => void }) {
           onChange={(e) => setPlace(e.target.value)}
           placeholder="Location (e.g. Mbombela, our favourite spot)"
           aria-label="Place"
-          className="mb-3 w-full rounded-2xl bg-warmwhite/10 px-4 py-2.5 text-sm text-warmwhite placeholder:text-rosegold-200/50 focus:outline-none focus:ring-2 focus:ring-rosegold-400"
+          className="mb-3 w-full rounded-2xl bg-black/5 px-4 py-2.5 text-sm text-[color:var(--ink-strong)] placeholder:text-[color:var(--ink-soft)] focus:outline-none focus:ring-2 focus:ring-rosegold-400"
         />
 
         <label className="mb-1 block text-xs uppercase tracking-luxe text-rosegold-400">Choose an Emoji</label>
@@ -196,7 +196,7 @@ function ComposeMoment({ onClose }: { onClose: () => void }) {
             accept="image/*,video/*"
             label="Attach photo or video"
             onUploaded={(id) => setMediaIds((m) => [...m, id])}
-            className="rounded-2xl border border-rosegold-400/30 bg-rosegold-500/20 px-4 py-2 text-sm text-warmwhite"
+            className="rounded-2xl border border-rosegold-400/30 bg-rosegold-500/20 px-4 py-2 text-sm text-[color:var(--ink-strong)]"
           >
             📷 Attach Photo / Video
           </MediaUpload>

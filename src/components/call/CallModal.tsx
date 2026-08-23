@@ -22,6 +22,7 @@ export function CallModal() {
     remoteStream,
     isMuted,
     isVideoOff,
+    isReconnecting,
     durationSeconds,
     answerCall,
     rejectCall,
@@ -127,6 +128,21 @@ export function CallModal() {
               : 'Calling…'}
           </div>
         </div>
+
+        {/* Shown during the brief-network-blip grace period instead of
+            silently hanging up — see webrtc.ts's onconnectionstatechange. */}
+        <AnimatePresence>
+          {isReconnecting && callState === 'connected' && (
+            <motion.div
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              className="absolute left-1/2 top-16 z-20 -translate-x-1/2 rounded-full bg-amber-500/90 px-4 py-1.5 text-xs font-semibold text-black shadow-lg"
+            >
+              Reconnecting…
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* --- CENTER: PARTNER AVATAR & AUDIO RIPPLE (Voice Mode or Before Video Connects) --- */}
         {(!remoteStream || callType === 'voice') && (

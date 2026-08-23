@@ -56,12 +56,12 @@ function UploadModal({ onClose }: { onClose: () => void }) {
         exit={{ y: 20, opacity: 0 }}
       >
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="font-display text-2xl text-warmwhite">Add to Gallery</h2>
+          <h2 className="font-display text-2xl text-[color:var(--ink-strong)]">Add to Gallery</h2>
           <button
             type="button"
             aria-label="Close"
             onClick={onClose}
-            className="tap flex h-9 w-9 items-center justify-center rounded-full text-rosegold-300 hover:text-white"
+            className="tap flex h-9 w-9 items-center justify-center rounded-full text-rosegold-400 hover:text-rosegold-600"
           >
             <CloseIcon width={20} height={20} />
           </button>
@@ -76,7 +76,7 @@ function UploadModal({ onClose }: { onClose: () => void }) {
               onClick={() => setAlbum(a.id)}
               className={cn(
                 'tap rounded-full px-3 py-1 text-xs transition-colors',
-                album === a.id ? 'bg-rosegold-500 text-warmwhite' : 'bg-warmwhite/10 text-rosegold-200/70',
+                album === a.id ? 'bg-rosegold-500 text-warmwhite' : 'bg-black/5 text-[color:var(--ink-soft)]',
               )}
             >
               {a.emoji} {a.title}
@@ -89,7 +89,7 @@ function UploadModal({ onClose }: { onClose: () => void }) {
             accept="image/*,video/*"
             label="Upload photo or video"
             onUploaded={(id) => setMediaId(id)}
-            className="flex w-full items-center justify-center rounded-2xl border border-dashed border-rosegold-400/50 bg-rosegold-500/10 p-6 text-sm text-warmwhite transition-colors hover:bg-rosegold-500/20"
+            className="flex w-full items-center justify-center rounded-2xl border border-dashed border-rosegold-400/50 bg-rosegold-500/10 p-6 text-sm text-[color:var(--ink-strong)] transition-colors hover:bg-rosegold-500/20"
           >
             {mediaId ? '✓ Photo / Video Loaded' : '📷 Choose Photo or Video'}
           </MediaUpload>
@@ -100,7 +100,7 @@ function UploadModal({ onClose }: { onClose: () => void }) {
           onChange={(e) => setCaption(e.target.value)}
           placeholder="Caption (e.g. Golden hour with you)…"
           aria-label="Caption"
-          className="mb-4 w-full rounded-2xl bg-warmwhite/10 px-4 py-3 font-serif text-base text-warmwhite placeholder:text-rosegold-200/50 focus:outline-none focus:ring-2 focus:ring-rosegold-400"
+          className="mb-4 w-full rounded-2xl bg-black/5 px-4 py-3 font-serif text-base text-[color:var(--ink-strong)] placeholder:text-[color:var(--ink-soft)] focus:outline-none focus:ring-2 focus:ring-rosegold-400"
         />
 
         <Button variant="gold" size="lg" className="w-full" onClick={save} disabled={!mediaId}>
@@ -212,7 +212,7 @@ export default function Gallery() {
       </div>
 
       {/* Display Mode Switcher */}
-      <div className="mb-5 flex gap-1 rounded-full bg-black/40 p-1 text-sm backdrop-blur-md">
+      <div className="mb-5 flex gap-1 rounded-full bg-black/75 p-1 text-sm backdrop-blur-md">
         {(['polaroid', 'grid', 'scrapbook'] as Mode[]).map((m) => (
           <button
             key={m}
@@ -223,7 +223,7 @@ export default function Gallery() {
             }}
             className={cn(
               'tap flex-1 rounded-full py-1.5 capitalize transition-colors',
-              mode === m ? 'bg-rosegold-500 text-warmwhite font-semibold' : 'text-rosegold-200/70',
+              mode === m ? 'bg-rosegold-500 text-warmwhite font-semibold' : 'text-warmwhite/70',
             )}
           >
             {m}
@@ -233,9 +233,9 @@ export default function Gallery() {
 
       {/* Empty State */}
       {list.length === 0 && (
-        <GlassCard className="flex flex-col items-center justify-center p-12 text-center text-rosegold-200/70">
+        <GlassCard className="flex flex-col items-center justify-center p-12 text-center text-[color:var(--ink-soft)]">
           <span className="text-4xl">📸</span>
-          <p className="mt-3 font-display text-xl text-warmwhite">No photos in this album yet</p>
+          <p className="mt-3 font-display text-xl text-[color:var(--ink-strong)]">No photos in this album yet</p>
           <p className="mt-1 text-xs">Tap the upload button above to add the first memory.</p>
         </GlassCard>
       )}

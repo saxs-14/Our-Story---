@@ -15,6 +15,7 @@ interface WallpaperSync {
   chatWallpaper: ChatWallpaperType;
   chatCustomImageUrl: string | null;
   chatCustomVideoUrl: string | null;
+  chatWallpaperBrightness: number;
 }
 
 interface AppState {
@@ -40,6 +41,8 @@ interface AppState {
   // (or forever, if Firebase isn't configured).
   chatCustomImageMediaId: string | null;
   chatCustomVideoMediaId: string | null;
+  // 0 = fully dimmed (black), 100 = full brightness, no dimming overlay.
+  chatWallpaperBrightness: number;
 
   setTheme: (t: ThemeName) => void;
   toggleTheme: () => void;
@@ -55,6 +58,7 @@ interface AppState {
   setChatWallpaper: (w: ChatWallpaperType) => void;
   setChatCustomImage: (mediaId: string | null, url: string | null) => void;
   setChatCustomVideo: (mediaId: string | null, url: string | null) => void;
+  setChatWallpaperBrightness: (v: number) => void;
   /** Pull the shared wallpaper doc so both partners see the same background. */
   pullWallpaperFromFirestore: () => Promise<void>;
 }
@@ -64,6 +68,7 @@ function syncWallpaper(s: WallpaperSync) {
     chatWallpaper: s.chatWallpaper,
     chatCustomImageUrl: s.chatCustomImageUrl,
     chatCustomVideoUrl: s.chatCustomVideoUrl,
+    chatWallpaperBrightness: s.chatWallpaperBrightness,
   });
 }
 
@@ -86,6 +91,7 @@ export const useAppStore = create<AppState>()(
       chatCustomVideoUrl: null,
       chatCustomImageMediaId: null,
       chatCustomVideoMediaId: null,
+      chatWallpaperBrightness: 70,
 
       setTheme: (theme) => set({ theme }),
       toggleTheme: () => set((s) => ({ theme: s.theme === 'day' ? 'dusk' : 'day' })),
@@ -121,6 +127,11 @@ export const useAppStore = create<AppState>()(
         });
         syncWallpaper(get());
       },
+      setChatWallpaperBrightness: (v) => {
+        const chatWallpaperBrightness = Math.max(0, Math.min(100, Math.round(v)));
+        set({ chatWallpaperBrightness });
+        syncWallpaper(get());
+      },
       pullWallpaperFromFirestore: async () => {
         const cloud = await pullSingleDoc<WallpaperSync>('settings', 'wallpaper');
         if (!cloud) return;
@@ -128,6 +139,7 @@ export const useAppStore = create<AppState>()(
           chatWallpaper: cloud.chatWallpaper,
           chatCustomImageUrl: cloud.chatCustomImageUrl,
           chatCustomVideoUrl: cloud.chatCustomVideoUrl,
+          chatWallpaperBrightness: cloud.chatWallpaperBrightness ?? 70,
         });
       },
     }),

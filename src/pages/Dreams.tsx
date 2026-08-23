@@ -61,13 +61,13 @@ function ComposeDream({ onClose }: { onClose: () => void }) {
         <div className="mb-4 flex items-center justify-between">
           <div>
             <span className="text-xs uppercase tracking-luxe text-rosegold-400">Our Future Vision</span>
-            <h2 className="font-display text-2xl text-warmwhite">Add a Joint Dream</h2>
+            <h2 className="font-display text-2xl text-[color:var(--ink-strong)]">Add a Joint Dream</h2>
           </div>
           <button
             type="button"
             aria-label="Close"
             onClick={onClose}
-            className="tap flex h-9 w-9 items-center justify-center rounded-full text-rosegold-300 hover:text-white"
+            className="tap flex h-9 w-9 items-center justify-center rounded-full text-rosegold-400 hover:text-rosegold-600"
           >
             <CloseIcon width={20} height={20} />
           </button>
@@ -78,7 +78,7 @@ function ComposeDream({ onClose }: { onClose: () => void }) {
           onChange={(e) => setTitle(e.target.value)}
           placeholder="What are we dreaming of doing together?"
           aria-label="Dream title"
-          className="mb-3 w-full rounded-2xl bg-warmwhite/10 px-4 py-3 font-display text-lg text-warmwhite placeholder:text-rosegold-200/50 focus:outline-none focus:ring-2 focus:ring-rosegold-400"
+          className="mb-3 w-full rounded-2xl bg-black/5 px-4 py-3 font-display text-lg text-[color:var(--ink-strong)] placeholder:text-[color:var(--ink-soft)] focus:outline-none focus:ring-2 focus:ring-rosegold-400"
         />
 
         <textarea
@@ -87,7 +87,7 @@ function ComposeDream({ onClose }: { onClose: () => void }) {
           rows={3}
           placeholder="A little note or plan for this dream…"
           aria-label="Dream note"
-          className="mb-3 w-full resize-none rounded-2xl bg-warmwhite/10 p-4 text-sm text-warmwhite placeholder:text-rosegold-200/50 focus:outline-none focus:ring-2 focus:ring-rosegold-400"
+          className="mb-3 w-full resize-none rounded-2xl bg-black/5 p-4 text-sm text-[color:var(--ink-strong)] placeholder:text-[color:var(--ink-soft)] focus:outline-none focus:ring-2 focus:ring-rosegold-400"
         />
 
         <label className="mb-1 block text-xs uppercase tracking-luxe text-rosegold-400">Choose an Emoji</label>
@@ -116,7 +116,7 @@ function ComposeDream({ onClose }: { onClose: () => void }) {
               onClick={() => setCategory(c)}
               className={cn(
                 'tap rounded-full px-3 py-1 text-xs transition-colors',
-                category === c ? 'bg-rosegold-500 text-warmwhite' : 'bg-warmwhite/10 text-rosegold-200/70',
+                category === c ? 'bg-rosegold-500 text-warmwhite' : 'bg-black/5 text-[color:var(--ink-soft)]',
               )}
             >
               {c}
@@ -188,7 +188,7 @@ export default function Dreams() {
             playSound('sparkle');
             setShowAudiGarage(true);
           }}
-          className="glass tap flex items-center justify-between rounded-3xl border border-rosegold-400/40 bg-gradient-to-r from-rosegold-900/40 to-black/60 px-5 py-3.5 shadow-lg transition-transform hover:scale-[1.02]"
+          className="glass tap flex items-center justify-between rounded-3xl border border-rosegold-400/40 bg-gradient-to-r from-rosegold-900/80 to-black/90 px-5 py-3.5 shadow-lg transition-transform hover:scale-[1.02]"
         >
           <div className="flex items-center gap-3 text-left">
             <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white/10 text-lg">
@@ -209,13 +209,13 @@ export default function Dreams() {
       <GlassCard className="mb-5 flex items-center justify-between p-4">
         <div>
           <span className="text-xs uppercase tracking-luxe text-rosegold-400">Dreams Board</span>
-          <p className="font-display text-lg text-warmwhite">
+          <p className="font-display text-lg text-[color:var(--ink-strong)]">
             {dreams.length} {dreams.length === 1 ? 'Dream' : 'Dreams'} Recorded
           </p>
         </div>
         <div className="text-right">
           <span className="font-display text-xl font-bold text-emerald-400">{achievedCount}</span>
-          <p className="text-[0.6rem] uppercase tracking-luxe text-rosegold-200/70">Achieved Together</p>
+          <p className="text-[0.6rem] uppercase tracking-luxe text-[color:var(--ink-soft)]">Achieved Together</p>
         </div>
       </GlassCard>
 
@@ -242,9 +242,9 @@ export default function Dreams() {
 
       {/* Empty State or Dream Items */}
       {filtered.length === 0 ? (
-        <GlassCard className="flex flex-col items-center justify-center p-10 text-center text-rosegold-200/70">
+        <GlassCard className="flex flex-col items-center justify-center p-10 text-center text-[color:var(--ink-soft)]">
           <span className="text-4xl">✨</span>
-          <p className="mt-3 font-display text-xl text-warmwhite">No dreams in this category yet</p>
+          <p className="mt-3 font-display text-xl text-[color:var(--ink-strong)]">No dreams in this category yet</p>
           <p className="mt-1 text-xs">
             Tap the button above or browse the Audi Garage to add your first dream together!
           </p>
@@ -288,21 +288,21 @@ export default function Dreams() {
                   <div className="min-w-0 flex-1">
                     <p
                       className={cn(
-                        'font-display text-lg font-medium text-warmwhite',
-                        isDone && 'line-through text-rosegold-200/60',
+                        'font-display text-lg font-medium text-[color:var(--ink-strong)]',
+                        isDone && 'line-through text-[color:var(--ink-soft)]',
                       )}
                     >
                       {d.title}
                     </p>
                     {d.note && (
-                      <p className="mt-0.5 text-xs text-rosegold-200/80 leading-relaxed">{d.note}</p>
+                      <p className="mt-0.5 text-xs text-[color:var(--ink-soft)] leading-relaxed">{d.note}</p>
                     )}
                     <div className="mt-2 flex items-center gap-2">
                       <span className="text-[0.6rem] font-bold uppercase tracking-luxe text-rosegold-400">
                         {d.category}
                       </span>
                       {userDream && (
-                        <span className="text-[0.6rem] text-rosegold-300/70">
+                        <span className="text-[0.6rem] text-[color:var(--ink-soft)]">
                           · added by {personById(userDream.authorId).nickname}
                         </span>
                       )}

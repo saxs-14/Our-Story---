@@ -222,7 +222,7 @@ export default function Wrapped() {
         type="button"
         aria-label="Close Wrapped"
         onClick={() => navigate('/')}
-        className="tap absolute right-4 top-[calc(env(safe-area-inset-top)+3.5rem)] z-20 flex h-10 w-10 items-center justify-center rounded-full glass-strong text-warmwhite"
+        className="tap absolute right-4 top-[calc(env(safe-area-inset-top)+3.5rem)] z-20 flex h-10 w-10 items-center justify-center rounded-full bg-black/40 backdrop-blur-md text-warmwhite"
       >
         <CloseIcon width={22} height={22} />
       </button>

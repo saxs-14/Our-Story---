@@ -29,6 +29,14 @@ import { db, storage, FIREBASE_CONFIGURED } from '@/lib/firebase';
 import type { PersonId } from '@/store/useAuthStore';
 import { partnerOf } from '@/store/useAuthStore';
 
+export interface ReplyPreview {
+  id: string;
+  text: string;
+  senderId: PersonId;
+  senderName: string;
+  mediaType?: 'image' | 'video' | 'audio';
+}
+
 export interface ChatMessage {
   id: string;
   text: string;
@@ -40,20 +48,29 @@ export interface ChatMessage {
   audioDuration?: number; // seconds for voice notes
   reactions?: Record<string, string>; // e.g. { 'her': '❤️', 'him': '🔥' }
   read: boolean;
+  replyTo?: ReplyPreview;
+  isCallEvent?: boolean; // missed/completed call summary — rendered as a centered pill, not a bubble
   local?: boolean; // optimistic / unsent
 }
+
+export type PartnerActivity = 'typing' | 'recording' | null;
 
 interface ChatState {
   messages: ChatMessage[];
   unreadCount: number;
   uploading: boolean;
   uploadProgress: number;
-  partnerTyping: boolean;
+  partnerActivity: PartnerActivity;
 
   /** Subscribe to Firestore messages & typing indicators */
   subscribe: (currentUserId: PersonId) => Unsubscribe | null;
   /** Send a text message */
-  sendMessage: (text: string, senderId: PersonId, senderName: string) => Promise<void>;
+  sendMessage: (
+    text: string,
+    senderId: PersonId,
+    senderName: string,
+    replyTo?: ReplyPreview,
+  ) => Promise<void>;
   /** Upload media (photo / video / voice note) + send message */
   sendMedia: (
     file: Blob | File,
@@ -61,11 +78,12 @@ interface ChatState {
     senderName: string,
     caption?: string,
     audioDuration?: number,
+    replyTo?: ReplyPreview,
   ) => Promise<void>;
   /** Add reaction to a message */
   reactToMessage: (messageId: string, userId: PersonId, emoji: string) => Promise<void>;
-  /** Update typing status in Firestore */
-  setTyping: (userId: PersonId, isTyping: boolean) => void;
+  /** Update typing/recording activity status in Firestore */
+  setActivity: (userId: PersonId, activity: PartnerActivity) => void;
   /** Mark all messages as read */
   markRead: (currentUserId: PersonId) => void;
   clearUnread: () => void;
@@ -77,6 +95,32 @@ const MESSAGES_LIMIT = 250;
 
 let typingTimeout: number | null = null;
 
+/** Writes a call-summary system message (missed or completed) into the chat, WhatsApp-style. */
+export async function logCallEvent(
+  callerId: PersonId,
+  callerName: string,
+  callType: 'voice' | 'video',
+  outcome: 'missed' | 'completed',
+  durationSeconds = 0,
+): Promise<void> {
+  if (!FIREBASE_CONFIGURED || !db) return;
+  const icon = callType === 'video' ? '📹' : '📞';
+  const label = callType === 'video' ? 'Video call' : 'Voice call';
+  const text =
+    outcome === 'missed'
+      ? `${icon} Missed ${label.toLowerCase()}`
+      : `${icon} ${label} · ${Math.floor(durationSeconds / 60)}:${String(durationSeconds % 60).padStart(2, '0')}`;
+
+  await addDoc(collection(db, MESSAGES_COLLECTION), {
+    text,
+    senderId: callerId,
+    senderName: callerName,
+    read: false,
+    isCallEvent: true,
+    timestamp: serverTimestamp(),
+  }).catch(() => {});
+}
+
 export const useChatStore = create<ChatState>()(
   persist(
     (set, get) => ({
@@ -84,7 +128,7 @@ export const useChatStore = create<ChatState>()(
       unreadCount: 0,
       uploading: false,
       uploadProgress: 0,
-      partnerTyping: false,
+      partnerActivity: null,
 
       subscribe: (currentUserId) => {
         if (!FIREBASE_CONFIGURED || !db) return null;
@@ -113,6 +157,8 @@ export const useChatStore = create<ChatState>()(
               audioDuration: data.audioDuration,
               reactions: data.reactions ?? {},
               read: data.read ?? false,
+              replyTo: data.replyTo ?? undefined,
+              isCallEvent: data.isCallEvent ?? false,
             };
           });
 
@@ -127,12 +173,13 @@ export const useChatStore = create<ChatState>()(
           set({ messages: msgs, unreadCount: newFromPartner.length });
         });
 
-        // 2. Typing status listener
+        // 2. Typing/recording activity listener
         const typingDocRef = doc(db, TYPING_COLLECTION, partnerId);
         const unsubTyping = onSnapshot(typingDocRef, (snap) => {
           const data = snap.data();
-          const isTyping = data?.isTyping === true && Date.now() - (data?.updatedAt || 0) < 5000;
-          set({ partnerTyping: isTyping });
+          const fresh = Date.now() - (data?.updatedAt || 0) < 5000;
+          const activity: PartnerActivity = fresh ? (data?.activity ?? null) : null;
+          set({ partnerActivity: activity });
         });
 
         return () => {
@@ -141,7 +188,7 @@ export const useChatStore = create<ChatState>()(
         };
       },
 
-      sendMessage: async (text, senderId, senderName) => {
+      sendMessage: async (text, senderId, senderName, replyTo) => {
         if (!text.trim()) return;
 
         // Optimistic update
@@ -153,6 +200,7 @@ export const useChatStore = create<ChatState>()(
           senderName,
           timestamp: Date.now(),
           read: false,
+          replyTo,
           local: true,
         };
         set((s) => ({ messages: [...s.messages, optimistic] }));
@@ -164,6 +212,7 @@ export const useChatStore = create<ChatState>()(
               senderId,
               senderName,
               read: false,
+              replyTo: replyTo ?? null,
               timestamp: serverTimestamp(),
             });
             set((s) => ({ messages: s.messages.filter((m) => m.id !== tmpId) }));
@@ -173,7 +222,7 @@ export const useChatStore = create<ChatState>()(
         }
       },
 
-      sendMedia: async (file, senderId, senderName, caption = '', audioDuration) => {
+      sendMedia: async (file, senderId, senderName, caption = '', audioDuration, replyTo) => {
         if (!FIREBASE_CONFIGURED || !storage || !db) return;
 
         set({ uploading: true, uploadProgress: 0 });
@@ -210,6 +259,7 @@ export const useChatStore = create<ChatState>()(
           mediaType,
           audioDuration: audioDuration || null,
           read: false,
+          replyTo: replyTo ?? null,
           timestamp: serverTimestamp(),
         });
 
@@ -239,20 +289,20 @@ export const useChatStore = create<ChatState>()(
         }
       },
 
-      setTyping: (userId, isTyping) => {
+      setActivity: (userId, activity) => {
         if (!FIREBASE_CONFIGURED || !db) return;
 
         if (typingTimeout) clearTimeout(typingTimeout);
 
         const typingDocRef = doc(db, TYPING_COLLECTION, userId);
         void setDoc(typingDocRef, {
-          isTyping,
+          activity,
           updatedAt: Date.now(),
         });
 
-        if (isTyping) {
+        if (activity) {
           typingTimeout = window.setTimeout(() => {
-            void setDoc(typingDocRef, { isTyping: false, updatedAt: Date.now() });
+            void setDoc(typingDocRef, { activity: null, updatedAt: Date.now() });
           }, 3500);
         }
       },

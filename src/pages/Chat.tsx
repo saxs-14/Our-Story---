@@ -1,8 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useMotionValue, useTransform } from 'framer-motion';
 import { PageShell } from '@/components/layout/PageShell';
-import { useChatStore } from '@/store/useChatStore';
+import { useChatStore, type ChatMessage, type ReplyPreview } from '@/store/useChatStore';
 import { useAuthStore, personById, partnerOf } from '@/store/useAuthStore';
 import { useAppStore, type ChatWallpaperType } from '@/store/useAppStore';
 import { useCallStore } from '@/store/useCallStore';
@@ -162,8 +162,11 @@ function WallpaperModal({ onClose }: { onClose: () => void }) {
   const setChatWallpaper = useAppStore((s) => s.setChatWallpaper);
   const setChatCustomImage = useAppStore((s) => s.setChatCustomImage);
   const setChatCustomVideo = useAppStore((s) => s.setChatCustomVideo);
+  const chatWallpaperBrightness = useAppStore((s) => s.chatWallpaperBrightness);
+  const setChatWallpaperBrightness = useAppStore((s) => s.setChatWallpaperBrightness);
   const uploadMedia = useContentStore((s) => s.uploadMedia);
   const [videoInput, setVideoInput] = useState('');
+  const isCustom = chatWallpaper === 'custom-image' || chatWallpaper === 'custom-video';
 
   const PRESETS: { type: ChatWallpaperType; label: string; preview: string }[] = [
     { type: 'doodle', label: 'WhatsApp Doodle', preview: 'bg-[#0b141a]' },
@@ -196,7 +199,7 @@ function WallpaperModal({ onClose }: { onClose: () => void }) {
         <div className="mb-4 flex items-center justify-between">
           <div>
             <span className="text-xs uppercase tracking-luxe text-rosegold-400">Personalize Chat</span>
-            <h2 className="font-display text-2xl text-warmwhite">Chat Wallpaper</h2>
+            <h2 className="font-display text-2xl text-[color:var(--ink-strong)]">Chat Wallpaper</h2>
           </div>
           <button
             type="button"
@@ -263,7 +266,7 @@ function WallpaperModal({ onClose }: { onClose: () => void }) {
           />
           <label
             htmlFor="chat-bg-file"
-            className="tap flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl border border-dashed border-rosegold-400/40 bg-rosegold-500/10 p-3 text-xs text-warmwhite hover:bg-rosegold-500/20"
+            className="tap flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl border border-dashed border-rosegold-400/40 bg-rosegold-500/10 p-3 text-xs text-[color:var(--ink-strong)] hover:bg-rosegold-500/20"
           >
             📷 Upload Image as Chat Background
           </label>
@@ -294,7 +297,7 @@ function WallpaperModal({ onClose }: { onClose: () => void }) {
           />
           <label
             htmlFor="chat-bg-video-file"
-            className="tap flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl border border-dashed border-rosegold-400/40 bg-rosegold-500/10 p-3 text-xs text-warmwhite hover:bg-rosegold-500/20"
+            className="tap flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl border border-dashed border-rosegold-400/40 bg-rosegold-500/10 p-3 text-xs text-[color:var(--ink-strong)] hover:bg-rosegold-500/20"
           >
             🎬 Upload Video as Chat Background
           </label>
@@ -306,7 +309,7 @@ function WallpaperModal({ onClose }: { onClose: () => void }) {
             value={videoInput}
             onChange={(e) => setVideoInput(e.target.value)}
             placeholder="https://example.com/video.mp4"
-            className="w-full rounded-2xl bg-white/10 px-3.5 py-2 text-xs text-warmwhite placeholder:text-rosegold-200/40 focus:outline-none focus:ring-1 focus:ring-rosegold-400"
+            className="w-full rounded-2xl bg-black/5 px-3.5 py-2 text-xs text-[color:var(--ink-strong)] placeholder:text-[color:var(--ink-soft)] focus:outline-none focus:ring-1 focus:ring-rosegold-400"
           />
           <button
             type="button"
@@ -323,6 +326,30 @@ function WallpaperModal({ onClose }: { onClose: () => void }) {
             Apply
           </button>
         </div>
+
+        {isCustom && (
+          <div className="mt-4 border-t border-white/10 pt-4">
+            <div className="mb-2 flex items-center justify-between">
+              <label htmlFor="wallpaper-brightness" className="text-xs uppercase tracking-luxe text-rosegold-400">
+                Background lighting
+              </label>
+              <span className="text-xs text-[color:var(--ink-soft)]">{chatWallpaperBrightness}%</span>
+            </div>
+            <input
+              id="wallpaper-brightness"
+              type="range"
+              min={0}
+              max={100}
+              value={chatWallpaperBrightness}
+              onChange={(e) => setChatWallpaperBrightness(Number(e.target.value))}
+              className="w-full accent-rosegold-500"
+              aria-label="Background lighting"
+            />
+            <p className="mt-1 text-[0.65rem] text-[color:var(--ink-soft)]">
+              Lower for a dimmer photo/video so message bubbles stay easy to read
+            </p>
+          </div>
+        )}
       </motion.div>
     </motion.div>
   );
@@ -421,22 +448,211 @@ function DayDivider({ label }: { label: string }) {
   );
 }
 
+/**
+ * Real (not decorative) status ticks:
+ *  - blue double tick  → read/seen (m.read)
+ *  - grey double tick  → sent, partner currently connected
+ *  - grey single tick  → sent, partner currently offline
+ * Reflects live presence rather than a persisted delivery receipt, matching
+ * how this app already tracks online/offline elsewhere.
+ */
+function MessageTicks({ read, partnerOnline }: { read: boolean; partnerOnline: boolean }) {
+  if (read) return <span className="font-bold text-[#53bdeb]" title="Seen">✓✓</span>;
+  if (partnerOnline) return <span className="font-bold text-white/50" title="Delivered">✓✓</span>;
+  return <span className="font-bold text-white/50" title="Sent">✓</span>;
+}
+
+const REPLY_SWIPE_THRESHOLD = 64;
+
+/**
+ * WhatsApp-style swipe-to-reply: swipe a partner's message right, or your
+ * own message left, past the threshold to set it as the reply target.
+ * Split into its own component (rather than inline in the list) so each
+ * bubble gets its own drag motion value — hooks can't live inside .map().
+ */
+function MessageBubble({
+  m,
+  isMe,
+  partnerOnline,
+  isSelected,
+  onSelect,
+  onReact,
+  onSwipeReply,
+  onViewMedia,
+}: {
+  m: ChatMessage;
+  isMe: boolean;
+  partnerOnline: boolean;
+  isSelected: boolean;
+  onSelect: (id: string | null) => void;
+  onReact: (emoji: string) => void;
+  onSwipeReply: (m: ChatMessage) => void;
+  onViewMedia: (url: string, type: 'image' | 'video') => void;
+}) {
+  const x = useMotionValue(0);
+  const replyIconOpacity = useTransform(
+    x,
+    isMe ? [-REPLY_SWIPE_THRESHOLD, 0] : [0, REPLY_SWIPE_THRESHOLD],
+    [1, 0],
+  );
+  const pressRef = useRef<{ x: number; y: number; timer: number } | null>(null);
+
+  const startPress = (px: number, py: number) => {
+    pressRef.current = {
+      x: px,
+      y: py,
+      timer: window.setTimeout(() => {
+        haptic('soft');
+        onSelect(m.id);
+        pressRef.current = null;
+      }, 420),
+    };
+  };
+  const movePress = (px: number, py: number) => {
+    if (!pressRef.current) return;
+    if (Math.hypot(px - pressRef.current.x, py - pressRef.current.y) > 10) {
+      clearTimeout(pressRef.current.timer);
+      pressRef.current = null;
+    }
+  };
+  const cancelPress = () => {
+    if (pressRef.current) {
+      clearTimeout(pressRef.current.timer);
+      pressRef.current = null;
+    }
+  };
+
+  return (
+    <div className="relative">
+      <motion.span
+        style={{ opacity: replyIconOpacity }}
+        className={cn(
+          'pointer-events-none absolute top-1/2 -translate-y-1/2 text-lg text-rosegold-300',
+          isMe ? 'right-1' : 'left-1',
+        )}
+      >
+        ↩
+      </motion.span>
+
+      <motion.div
+        drag="x"
+        style={{ x }}
+        dragDirectionLock
+        dragConstraints={isMe ? { left: -80, right: 0 } : { left: 0, right: 80 }}
+        dragElastic={0.5}
+        dragMomentum={false}
+        onDragEnd={(_e, info) => {
+          if (Math.abs(info.offset.x) >= REPLY_SWIPE_THRESHOLD) {
+            haptic('soft');
+            onSwipeReply(m);
+          }
+        }}
+        initial={{ opacity: 0, scale: 0.95, y: 8 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        onDoubleClick={() => onSelect(m.id)}
+        onPointerDown={(e) => startPress(e.clientX, e.clientY)}
+        onPointerMove={(e) => movePress(e.clientX, e.clientY)}
+        onPointerUp={cancelPress}
+        onPointerLeave={cancelPress}
+        onPointerCancel={cancelPress}
+        onContextMenu={(e) => e.preventDefault()}
+        className={cn(
+          'relative max-w-[82%] px-3.5 py-2 text-sm shadow-md transition-all [touch-action:pan-y]',
+          isMe
+            ? 'rounded-2xl rounded-tr-xs bg-[#005c4b] text-warmwhite shadow-[0_1px_2px_rgba(0,0,0,0.3)]'
+            : 'rounded-2xl rounded-tl-xs bg-[#202c33] text-warmwhite shadow-[0_1px_2px_rgba(0,0,0,0.3)]',
+        )}
+      >
+        <AnimatePresence>
+          {isSelected && (
+            <ReactionPicker onSelect={onReact} onClose={() => onSelect(null)} />
+          )}
+        </AnimatePresence>
+
+        {m.replyTo && (
+          <div
+            className={cn(
+              'mb-1.5 rounded-lg border-l-[3px] px-2 py-1 text-xs opacity-80',
+              isMe ? 'border-emerald-300 bg-black/15' : 'border-rosegold-300 bg-black/20',
+            )}
+          >
+            <p className="font-semibold">{m.replyTo.senderName}</p>
+            <p className="truncate">
+              {m.replyTo.mediaType === 'image'
+                ? '📷 Photo'
+                : m.replyTo.mediaType === 'video'
+                ? '🎬 Video'
+                : m.replyTo.mediaType === 'audio'
+                ? '🎙️ Voice note'
+                : m.replyTo.text}
+            </p>
+          </div>
+        )}
+
+        {m.mediaUrl && m.mediaType === 'image' && (
+          <button
+            type="button"
+            aria-label="View image"
+            onClick={() => onViewMedia(m.mediaUrl!, 'image')}
+            className="tap mb-1.5 block w-full overflow-hidden rounded-2xl border border-white/10"
+          >
+            <img src={m.mediaUrl} alt="Attachment" className="max-h-60 w-full object-cover" loading="lazy" />
+          </button>
+        )}
+        {m.mediaUrl && m.mediaType === 'video' && (
+          <button
+            type="button"
+            aria-label="View video"
+            onClick={() => onViewMedia(m.mediaUrl!, 'video')}
+            className="tap group/video relative mb-1.5 block w-full overflow-hidden rounded-2xl border border-white/10"
+          >
+            <video src={m.mediaUrl} className="max-h-60 w-full object-cover" preload="metadata" />
+            <span className="absolute inset-0 flex items-center justify-center bg-black/20 transition-colors group-hover/video:bg-black/30">
+              <span className="flex h-12 w-12 items-center justify-center rounded-full bg-black/50 text-2xl text-warmwhite">▶</span>
+            </span>
+          </button>
+        )}
+
+        {m.mediaUrl && m.mediaType === 'audio' ? (
+          <VoiceNoteBubble audioUrl={m.mediaUrl} duration={m.audioDuration} isMe={isMe} />
+        ) : (
+          <p className="leading-relaxed whitespace-pre-wrap">{m.text}</p>
+        )}
+
+        <div className="mt-1 flex items-center justify-end gap-1 text-[0.62rem] text-white/60">
+          <span>{formatTime(m.timestamp)}</span>
+          {isMe && <MessageTicks read={m.read} partnerOnline={partnerOnline} />}
+        </div>
+
+        {m.reactions && Object.keys(m.reactions).length > 0 && (
+          <div className="absolute -bottom-2.5 right-2 flex items-center gap-0.5 rounded-full bg-[#111b21] px-2 py-0.5 text-xs shadow-md border border-white/10">
+            {Object.values(m.reactions).map((r, ri) => (
+              <span key={ri}>{r}</span>
+            ))}
+          </div>
+        )}
+      </motion.div>
+    </div>
+  );
+}
+
 export default function Chat() {
   const navigate = useNavigate();
   const userId = useAuthStore((s) => s.userId);
   const {
     messages,
-    partnerTyping,
+    partnerActivity,
     sendMessage,
     sendMedia,
     reactToMessage,
-    setTyping,
+    setActivity,
     markRead,
     uploading,
     uploadProgress,
   } = useChatStore();
 
   const chatWallpaper = useAppStore((s) => s.chatWallpaper);
+  const chatWallpaperBrightness = useAppStore((s) => s.chatWallpaperBrightness);
   const customImageCloudUrl = useAppStore((s) => s.chatCustomImageUrl);
   const customImageMediaId = useAppStore((s) => s.chatCustomImageMediaId);
   const customVideoCloudUrl = useAppStore((s) => s.chatCustomVideoUrl);
@@ -485,36 +701,8 @@ export default function Chat() {
   const [selectedMsgId, setSelectedMsgId] = useState<string | null>(null);
   const [showWallpaperModal, setShowWallpaperModal] = useState(false);
   const [viewerMedia, setViewerMedia] = useState<{ url: string; type: 'image' | 'video' } | null>(null);
-
-  // Long-press (touch) or double-click (mouse) to open the reaction picker —
-  // WhatsApp-style. A move beyond a small threshold cancels it, so scrolling
-  // the message list doesn't accidentally trigger it.
-  const pressRef = useRef<{ id: string; timer: number; x: number; y: number } | null>(null);
-  const startPress = (id: string, x: number, y: number) => {
-    pressRef.current = {
-      id,
-      x,
-      y,
-      timer: window.setTimeout(() => {
-        haptic('soft');
-        setSelectedMsgId(id);
-        pressRef.current = null;
-      }, 420),
-    };
-  };
-  const movePress = (x: number, y: number) => {
-    if (!pressRef.current) return;
-    if (Math.hypot(x - pressRef.current.x, y - pressRef.current.y) > 10) {
-      clearTimeout(pressRef.current.timer);
-      pressRef.current = null;
-    }
-  };
-  const cancelPress = () => {
-    if (pressRef.current) {
-      clearTimeout(pressRef.current.timer);
-      pressRef.current = null;
-    }
-  };
+  const [replyTarget, setReplyTarget] = useState<ReplyPreview | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   // Audio Voice Recorder State
   const [isRecording, setIsRecording] = useState(false);
@@ -552,10 +740,10 @@ export default function Chat() {
   const handleTextChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setText(e.target.value);
     if (!userId) return;
-    setTyping(userId, true);
+    setActivity(userId, 'typing');
     if (typingTimer.current) window.clearTimeout(typingTimer.current);
     typingTimer.current = window.setTimeout(() => {
-      setTyping(userId, false);
+      setActivity(userId, null);
     }, 2000);
   };
 
@@ -565,9 +753,10 @@ export default function Chat() {
     haptic('soft');
     playSound('sparkle');
     const senderName = personById(userId).nickname;
-    void sendMessage(text.trim(), userId, senderName);
+    void sendMessage(text.trim(), userId, senderName, replyTarget ?? undefined);
     setText('');
-    setTyping(userId, false);
+    setReplyTarget(null);
+    setActivity(userId, null);
   };
 
   // Voice Note Recording
@@ -585,10 +774,12 @@ export default function Chat() {
       recorder.onstop = async () => {
         const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
         stream.getTracks().forEach((track) => track.stop());
+        if (userId) setActivity(userId, null);
 
         if (recordSeconds >= 1 && userId) {
           const senderName = personById(userId).nickname;
-          void sendMedia(audioBlob, userId, senderName, '🎙️ Voice Note', recordSeconds);
+          void sendMedia(audioBlob, userId, senderName, '🎙️ Voice Note', recordSeconds, replyTarget ?? undefined);
+          setReplyTarget(null);
           haptic('success');
           playSound('sparkle');
         }
@@ -598,6 +789,7 @@ export default function Chat() {
       setIsRecording(true);
       setRecordSeconds(0);
       haptic('tap');
+      if (userId) setActivity(userId, 'recording');
 
       timerRef.current = window.setInterval(() => {
         setRecordSeconds((s) => s + 1);
@@ -658,7 +850,10 @@ export default function Chat() {
             className="absolute inset-0 -z-10 bg-cover bg-center"
             style={{ backgroundImage: `url(${customImageUrl})` }}
           >
-            <div className="absolute inset-0 bg-black/40 backdrop-blur-[1px]" />
+            <div
+              className="absolute inset-0 backdrop-blur-[1px]"
+              style={{ backgroundColor: `rgba(0,0,0,${1 - chatWallpaperBrightness / 100})` }}
+            />
           </div>
         )}
         {chatWallpaper === 'custom-video' && customVideoUrl && (
@@ -668,7 +863,8 @@ export default function Chat() {
             muted
             playsInline
             src={customVideoUrl}
-            className="absolute inset-0 -z-10 h-full w-full object-cover opacity-60"
+            className="absolute inset-0 -z-10 h-full w-full object-cover"
+            style={{ opacity: chatWallpaperBrightness / 100 }}
           />
         )}
 
@@ -707,7 +903,13 @@ export default function Chat() {
                 {partner.nickname}
               </h2>
               <p className={cn('text-[0.68rem]', partnerOnline ? 'text-emerald-400' : 'text-white/40')}>
-                {partnerTyping ? 'typing…' : partnerOnline ? 'online ♥' : 'offline'}
+                {partnerActivity === 'typing'
+                  ? 'typing…'
+                  : partnerActivity === 'recording'
+                  ? 'recording a voice note…'
+                  : partnerOnline
+                  ? 'online ♥'
+                  : 'offline'}
               </p>
             </div>
           </div>
@@ -766,104 +968,38 @@ export default function Chat() {
               <React.Fragment key={m.id}>
                 {showDay && <DayDivider label={formatDay(m.timestamp)} />}
 
-                <div
-                  className={cn(
-                    'group relative mb-2 flex flex-col',
-                    isMe ? 'items-end' : 'items-start',
-                  )}
-                >
-                  <AnimatePresence>
-                    {selectedMsgId === m.id && (
-                      <ReactionPicker
-                        onSelect={(emoji) => {
-                          if (userId) void reactToMessage(m.id, userId, emoji);
-                        }}
-                        onClose={() => setSelectedMsgId(null)}
-                      />
-                    )}
-                  </AnimatePresence>
-
-                  {/* WhatsApp Speech Bubble */}
-                  <motion.div
-                    initial={{ opacity: 0, scale: 0.95, y: 8 }}
-                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                    onDoubleClick={() => setSelectedMsgId(m.id)}
-                    onPointerDown={(e) => startPress(m.id, e.clientX, e.clientY)}
-                    onPointerMove={(e) => movePress(e.clientX, e.clientY)}
-                    onPointerUp={cancelPress}
-                    onPointerLeave={cancelPress}
-                    onPointerCancel={cancelPress}
-                    onContextMenu={(e) => e.preventDefault()}
-                    className={cn(
-                      'relative max-w-[82%] px-3.5 py-2 text-sm shadow-md transition-all [touch-action:pan-y]',
-                      isMe
-                        ? 'rounded-2xl rounded-tr-xs bg-[#005c4b] text-warmwhite shadow-[0_1px_2px_rgba(0,0,0,0.3)]'
-                        : 'rounded-2xl rounded-tl-xs bg-[#202c33] text-warmwhite shadow-[0_1px_2px_rgba(0,0,0,0.3)]',
-                    )}
-                  >
-                    {/* Media Image / Video Attachment — tap to open full-screen viewer */}
-                    {m.mediaUrl && m.mediaType === 'image' && (
-                      <button
-                        type="button"
-                        aria-label="View image"
-                        onClick={() => setViewerMedia({ url: m.mediaUrl!, type: 'image' })}
-                        className="tap mb-1.5 block w-full overflow-hidden rounded-2xl border border-white/10"
-                      >
-                        <img
-                          src={m.mediaUrl}
-                          alt="Attachment"
-                          className="max-h-60 w-full object-cover"
-                          loading="lazy"
-                        />
-                      </button>
-                    )}
-                    {m.mediaUrl && m.mediaType === 'video' && (
-                      <button
-                        type="button"
-                        aria-label="View video"
-                        onClick={() => setViewerMedia({ url: m.mediaUrl!, type: 'video' })}
-                        className="tap group/video relative mb-1.5 block w-full overflow-hidden rounded-2xl border border-white/10"
-                      >
-                        <video src={m.mediaUrl} className="max-h-60 w-full object-cover" preload="metadata" />
-                        <span className="absolute inset-0 flex items-center justify-center bg-black/20 transition-colors group-hover/video:bg-black/30">
-                          <span className="flex h-12 w-12 items-center justify-center rounded-full bg-black/50 text-2xl text-warmwhite">
-                            ▶
-                          </span>
-                        </span>
-                      </button>
-                    )}
-
-                    {/* Audio Voice Note Bubble */}
-                    {m.mediaUrl && m.mediaType === 'audio' ? (
-                      <VoiceNoteBubble
-                        audioUrl={m.mediaUrl}
-                        duration={m.audioDuration}
-                        isMe={isMe}
-                      />
-                    ) : (
-                      <p className="leading-relaxed whitespace-pre-wrap">{m.text}</p>
-                    )}
-
-                    {/* Time & Double Checkmark status */}
-                    <div className="mt-1 flex items-center justify-end gap-1 text-[0.62rem] text-white/60">
-                      <span>{formatTime(m.timestamp)}</span>
-                      {isMe && (
-                        <span className="font-bold text-[#53bdeb]" title="Delivered & Read">
-                          ✓✓
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Reactions Pill */}
-                    {m.reactions && Object.keys(m.reactions).length > 0 && (
-                      <div className="absolute -bottom-2.5 right-2 flex items-center gap-0.5 rounded-full bg-[#111b21] px-2 py-0.5 text-xs shadow-md border border-white/10">
-                        {Object.values(m.reactions).map((r, ri) => (
-                          <span key={ri}>{r}</span>
-                        ))}
-                      </div>
-                    )}
-                  </motion.div>
+                {m.isCallEvent ? (
+                  <div className="my-2 flex items-center justify-center">
+                    <span className="flex items-center gap-1.5 rounded-full bg-black/40 px-3.5 py-1.5 text-xs text-white/80 shadow-sm backdrop-blur-md">
+                      {m.text}
+                      <span className="text-white/40">· {formatTime(m.timestamp)}</span>
+                    </span>
+                  </div>
+                ) : (
+                <div className={cn('group relative mb-2 flex flex-col', isMe ? 'items-end' : 'items-start')}>
+                  <MessageBubble
+                    m={m}
+                    isMe={isMe}
+                    partnerOnline={partnerOnline}
+                    isSelected={selectedMsgId === m.id}
+                    onSelect={setSelectedMsgId}
+                    onReact={(emoji) => {
+                      if (userId) void reactToMessage(m.id, userId, emoji);
+                    }}
+                    onSwipeReply={(target) => {
+                      setReplyTarget({
+                        id: target.id,
+                        text: target.text,
+                        senderId: target.senderId,
+                        senderName: target.senderName,
+                        mediaType: target.mediaType,
+                      });
+                      inputRef.current?.focus();
+                    }}
+                    onViewMedia={(url, type) => setViewerMedia({ url, type })}
+                  />
                 </div>
+                )}
               </React.Fragment>
             );
           })}
@@ -882,6 +1018,40 @@ export default function Chat() {
 
         {/* ── BOTTOM DOCK: WHATSAPP INPUT & VOICE RECORDER ─────────── */}
         <div className="relative z-30 shrink-0 bg-[#202c33] px-3 py-2 pb-[calc(env(safe-area-inset-bottom)+0.5rem)]">
+          <AnimatePresence>
+            {replyTarget && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                className="mb-2 flex items-center gap-2 overflow-hidden rounded-xl bg-[#111b21] px-3 py-2"
+              >
+                <div className="min-w-0 flex-1 border-l-[3px] border-rosegold-400 pl-2">
+                  <p className="text-xs font-semibold text-rosegold-300">
+                    Replying to {replyTarget.senderName}
+                  </p>
+                  <p className="truncate text-xs text-white/60">
+                    {replyTarget.mediaType === 'image'
+                      ? '📷 Photo'
+                      : replyTarget.mediaType === 'video'
+                      ? '🎬 Video'
+                      : replyTarget.mediaType === 'audio'
+                      ? '🎙️ Voice note'
+                      : replyTarget.text}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  aria-label="Cancel reply"
+                  onClick={() => { haptic('tap'); setReplyTarget(null); }}
+                  className="tap flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-white/60 hover:bg-white/10"
+                >
+                  <CloseIcon width={14} height={14} />
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           {isRecording ? (
             /* Live Voice Note Recorder Bar */
             <div className="flex items-center justify-between rounded-full bg-[#111b21] px-4 py-2 text-warmwhite shadow-inner">
@@ -931,6 +1101,7 @@ export default function Chat() {
               {/* Text Input */}
               <div className="relative flex flex-1 items-center rounded-full bg-[#2a3942] px-4 py-2 shadow-inner">
                 <input
+                  ref={inputRef}
                   type="text"
                   value={text}
                   onChange={handleTextChange}

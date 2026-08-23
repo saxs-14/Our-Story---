@@ -79,13 +79,13 @@ function ComposeLetter({ onClose }: { onClose: () => void }) {
         <div className="mb-3 flex items-center justify-between">
           <div>
             <span className="text-xs uppercase tracking-luxe text-rosegold-400">Pour your heart out</span>
-            <h2 className="font-display text-2xl text-warmwhite">Write a Private Letter</h2>
+            <h2 className="font-display text-2xl text-[color:var(--ink-strong)]">Write a Private Letter</h2>
           </div>
           <button
             type="button"
             aria-label="Close"
             onClick={onClose}
-            className="tap flex h-9 w-9 items-center justify-center rounded-full text-rosegold-300 hover:text-white"
+            className="tap flex h-9 w-9 items-center justify-center rounded-full text-rosegold-400 hover:text-rosegold-600"
           >
             <CloseIcon width={20} height={20} />
           </button>
@@ -96,7 +96,7 @@ function ComposeLetter({ onClose }: { onClose: () => void }) {
           onChange={(e) => setTitle(e.target.value)}
           placeholder="Title (e.g. A letter for my favourite person)…"
           aria-label="Letter title"
-          className="mb-3 w-full rounded-2xl bg-warmwhite/10 px-4 py-3 font-display text-lg text-warmwhite placeholder:text-rosegold-200/50 focus:outline-none focus:ring-2 focus:ring-rosegold-400"
+          className="mb-3 w-full rounded-2xl bg-black/5 px-4 py-3 font-display text-lg text-[color:var(--ink-strong)] placeholder:text-[color:var(--ink-soft)] focus:outline-none focus:ring-2 focus:ring-rosegold-400"
         />
 
         {/* Category Chips */}
@@ -108,7 +108,7 @@ function ComposeLetter({ onClose }: { onClose: () => void }) {
               onClick={() => setCategory(c)}
               className={cn(
                 'tap rounded-full px-3 py-1 text-xs transition-colors',
-                category === c ? 'bg-rosegold-500 text-warmwhite' : 'bg-warmwhite/10 text-rosegold-200/70',
+                category === c ? 'bg-rosegold-500 text-warmwhite' : 'bg-black/5 text-[color:var(--ink-soft)]',
               )}
             >
               {c}
@@ -118,7 +118,7 @@ function ComposeLetter({ onClose }: { onClose: () => void }) {
 
         {/* Wax Seal Selector */}
         <div className="mb-3 flex items-center gap-2">
-          <span className="text-xs text-rosegold-300">Wax seal:</span>
+          <span className="text-xs text-rosegold-400">Wax seal:</span>
           {SEAL_COLORS.map((s) => (
             <button
               key={s.color}
@@ -126,7 +126,7 @@ function ComposeLetter({ onClose }: { onClose: () => void }) {
               onClick={() => setSealColor(s.color)}
               className={cn(
                 'h-6 w-6 rounded-full shadow-md transition-transform',
-                sealColor === s.color ? 'scale-125 ring-2 ring-warmwhite' : 'opacity-70',
+                sealColor === s.color ? 'scale-125 ring-2 ring-rosegold-600' : 'opacity-70',
               )}
               style={{ background: s.color }}
               title={s.name}
@@ -140,7 +140,7 @@ function ComposeLetter({ onClose }: { onClose: () => void }) {
           rows={8}
           placeholder="Write whatever is in your heart… (leave empty lines between paragraphs)"
           aria-label="Letter body"
-          className="mb-4 w-full flex-1 resize-none rounded-2xl bg-warmwhite/10 p-4 font-serif text-base leading-relaxed text-warmwhite placeholder:text-rosegold-200/50 focus:outline-none focus:ring-2 focus:ring-rosegold-400"
+          className="mb-4 w-full flex-1 resize-none rounded-2xl bg-black/5 p-4 font-serif text-base leading-relaxed text-[color:var(--ink-strong)] placeholder:text-[color:var(--ink-soft)] focus:outline-none focus:ring-2 focus:ring-rosegold-400"
         />
 
         <Button variant="gold" size="lg" onClick={save} disabled={!title.trim() || !body.trim()}>
@@ -216,7 +216,7 @@ function Reader({ letter, onClose }: { letter: Letter; onClose: () => void }) {
               }}
               className={cn(
                 'tap flex h-9 items-center rounded-full px-3 text-xs font-serif transition-colors',
-                handwritten ? 'bg-rosegold-500 text-warmwhite' : 'glass text-rosegold-200',
+                handwritten ? 'bg-rosegold-500 text-warmwhite' : 'glass text-[color:var(--ink-soft)]',
               )}
             >
               ✍️ Handwritten
@@ -250,11 +250,11 @@ function Reader({ letter, onClose }: { letter: Letter; onClose: () => void }) {
 
         {/* Letter Scrollable Body */}
         <div ref={scrollRef} onScroll={onScroll} className="overflow-y-auto px-7 pb-8 pt-4">
-          <h2 className="font-display text-3xl font-medium text-warmwhite">{letter.title}</h2>
+          <h2 className="font-display text-3xl font-medium text-[color:var(--ink-strong)]">{letter.title}</h2>
 
           <div
             className={cn(
-              'mt-6 space-y-4 leading-relaxed text-warmwhite/90',
+              'mt-6 space-y-4 leading-relaxed text-[color:var(--ink-strong)]',
               handwritten ? 'font-script text-2xl' : 'font-serif text-lg',
             )}
           >
@@ -335,7 +335,7 @@ export default function Letters() {
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search through our letters…"
           aria-label="Search letters"
-          className="w-full bg-transparent text-sm text-warmwhite placeholder:text-rosegold-200/50 focus:outline-none"
+          className="w-full bg-transparent text-sm text-[color:var(--ink-strong)] placeholder:text-[color:var(--ink-soft)] focus:outline-none"
         />
       </div>
 
@@ -361,7 +361,7 @@ export default function Letters() {
       </div>
 
       {filtered.length === 0 ? (
-        <GlassCard className="p-8 text-center text-rosegold-200/70">
+        <GlassCard className="p-8 text-center text-[color:var(--ink-soft)]">
           {filter === 'Bookmarked'
             ? 'No bookmarks yet — open any letter and tap the ribbon to save it here.'
             : 'No letters found.'}
@@ -388,7 +388,7 @@ export default function Letters() {
                     className="min-w-0 flex-1 text-left"
                   >
                     <div className="flex flex-wrap items-center gap-2">
-                      <p className="font-display text-xl font-medium text-warmwhite">{l.title}</p>
+                      <p className="font-display text-xl font-medium text-[color:var(--ink-strong)]">{l.title}</p>
                       {author && (
                         <span className="rounded-full bg-rosegold-500/20 px-2.5 py-0.5 text-[0.6rem] uppercase tracking-luxe text-rosegold-300">
                           from {personById(author).nickname}
@@ -400,7 +400,7 @@ export default function Letters() {
                         </span>
                       )}
                     </div>
-                    <p className="mt-1 line-clamp-2 text-sm text-rosegold-200/70">{l.preview}</p>
+                    <p className="mt-1 line-clamp-2 text-sm text-[color:var(--ink-soft)]">{l.preview}</p>
                     <p className="mt-2 text-[0.65rem] font-bold uppercase tracking-luxe text-rosegold-400">
                       {l.category} {l.date && `· ${formatLongDate(l.date)}`} · {l.readingTime} min read
                     </p>

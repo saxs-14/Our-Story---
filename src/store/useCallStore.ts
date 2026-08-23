@@ -3,7 +3,10 @@ import { collection, query, where, onSnapshot, type Unsubscribe } from 'firebase
 import { db, FIREBASE_CONFIGURED } from '@/lib/firebase';
 import { webrtc } from '@/lib/webrtc';
 import type { PersonId } from '@/store/useAuthStore';
-import { personById, partnerOf } from '@/store/useAuthStore';
+import { personById, partnerOf, useAuthStore } from '@/store/useAuthStore';
+import { logCallEvent } from '@/store/useChatStore';
+
+const RING_TIMEOUT_MS = 45_000;
 
 export type CallState = 'idle' | 'calling' | 'incoming' | 'connected' | 'ended';
 export type CallType = 'voice' | 'video';
@@ -19,6 +22,7 @@ interface CallStore {
   remoteStream: MediaStream | null;
   isMuted: boolean;
   isVideoOff: boolean;
+  isReconnecting: boolean;
   durationSeconds: number;
 
   startCall: (type: CallType, callerId: PersonId) => Promise<void>;
@@ -32,6 +36,14 @@ interface CallStore {
 }
 
 let timerInterval: number | null = null;
+let ringTimeout: number | null = null;
+
+function clearRingTimeout() {
+  if (ringTimeout) {
+    clearTimeout(ringTimeout);
+    ringTimeout = null;
+  }
+}
 
 export const useCallStore = create<CallStore>((set, get) => {
   // Bind WebRTC events to store
@@ -39,8 +51,11 @@ export const useCallStore = create<CallStore>((set, get) => {
     set({ remoteStream });
   };
 
+  webrtc.onReconnecting = (isReconnecting) => set({ isReconnecting });
+
   webrtc.onCallConnected = () => {
-    set({ callState: 'connected' });
+    clearRingTimeout();
+    set({ callState: 'connected', isReconnecting: false });
     if (timerInterval) clearInterval(timerInterval);
     timerInterval = window.setInterval(() => {
       set((s) => ({ durationSeconds: s.durationSeconds + 1 }));
@@ -48,10 +63,23 @@ export const useCallStore = create<CallStore>((set, get) => {
   };
 
   webrtc.onCallEnded = () => {
+    clearRingTimeout();
     if (timerInterval) {
       clearInterval(timerInterval);
       timerInterval = null;
     }
+
+    // Only the caller's device logs the outcome, so a completed/missed call
+    // doesn't get written twice (once from each side). Skip logging if the
+    // call was already idle/reset when this fired (avoids double-logging).
+    const { callState, callerId, calleeId, callerName, callType, durationSeconds } = get();
+    const localUserId = useAuthStore.getState().userId;
+    const wasActive = callState === 'connected' || callState === 'calling' || callState === 'incoming';
+    if (callerId && calleeId && localUserId === callerId && wasActive) {
+      const outcome = callState === 'connected' ? 'completed' : 'missed';
+      void logCallEvent(callerId, callerName, callType, outcome, durationSeconds);
+    }
+
     const currentLocal = get().localStream;
     if (currentLocal) {
       currentLocal.getTracks().forEach((t) => {
@@ -81,6 +109,7 @@ export const useCallStore = create<CallStore>((set, get) => {
       remoteStream: null,
       isMuted: false,
       isVideoOff: false,
+      isReconnecting: false,
       durationSeconds: 0,
     });
   };
@@ -92,6 +121,7 @@ export const useCallStore = create<CallStore>((set, get) => {
     callerId: null,
     calleeId: null,
     callerName: '',
+    isReconnecting: false,
     localStream: null,
     remoteStream: null,
     isMuted: false,
@@ -118,6 +148,15 @@ export const useCallStore = create<CallStore>((set, get) => {
         set({ localStream: stream });
         const callId = await webrtc.makeCall(type, callerId, callerName, calleeId);
         set({ callId });
+
+        // No native "ringing" concept on this signaling layer — if the
+        // callee's device never answers (offline, asleep, ignored), the
+        // call would otherwise hang in 'calling' forever. Time it out like
+        // a real phone.
+        clearRingTimeout();
+        ringTimeout = window.setTimeout(() => {
+          if (get().callState === 'calling') void get().endCall();
+        }, RING_TIMEOUT_MS);
       } catch (err) {
         console.error('Call initialization failed:', err);
         webrtc.onCallEnded?.();

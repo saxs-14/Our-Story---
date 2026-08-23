@@ -46,10 +46,12 @@ export class WebRTCService {
   private callDocId: string | null = null;
   private callUnsub: Unsubscribe | null = null;
   private candidateUnsub: Unsubscribe | null = null;
+  private reconnectTimer: number | null = null;
 
   public onRemoteStream?: (stream: MediaStream) => void;
   public onCallEnded?: () => void;
   public onCallConnected?: () => void;
+  public onReconnecting?: (reconnecting: boolean) => void;
 
   /** Initialize local audio / video stream */
   public async getLocalStream(type: 'voice' | 'video'): Promise<MediaStream> {
@@ -323,8 +325,41 @@ export class WebRTCService {
     };
 
     this.pc.onconnectionstatechange = () => {
-      if (this.pc?.connectionState === 'disconnected' || this.pc?.connectionState === 'failed' || this.pc?.connectionState === 'closed') {
+      const state = this.pc?.connectionState;
+
+      // 'failed'/'closed' are terminal — no point waiting.
+      if (state === 'failed' || state === 'closed') {
         this.endCall();
+        return;
+      }
+
+      // 'disconnected' is often a brief blip (Wi-Fi <-> cellular handoff,
+      // a dropped packet) that WebRTC recovers from on its own within a
+      // few seconds — ending the call immediately here was hanging up on
+      // momentary network hiccups instead of riding them out. Give it a
+      // grace period, and nudge ICE to retry, before giving up for real.
+      if (state === 'disconnected') {
+        if (this.reconnectTimer) return; // already waiting
+        this.onReconnecting?.(true);
+        this.reconnectTimer = window.setTimeout(() => {
+          this.reconnectTimer = null;
+          if (this.pc?.connectionState === 'disconnected' || this.pc?.connectionState === 'failed') {
+            this.endCall();
+          }
+        }, 10_000);
+        try {
+          this.pc?.restartIce();
+        } catch {
+          /* not supported everywhere — the timeout fallback still applies */
+        }
+        return;
+      }
+
+      // Recovered (back to 'connected') — cancel any pending grace-period end.
+      if (state === 'connected' && this.reconnectTimer) {
+        clearTimeout(this.reconnectTimer);
+        this.reconnectTimer = null;
+        this.onReconnecting?.(false);
       }
     };
 
@@ -332,6 +367,10 @@ export class WebRTCService {
   }
 
   public cleanup(): void {
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
     if (this.callUnsub) {
       this.callUnsub();
       this.callUnsub = null;

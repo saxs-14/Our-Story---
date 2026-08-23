@@ -24,6 +24,7 @@ import {
   showMessageNotification,
   registerNotificationTap,
 } from '@/lib/notify';
+import { enablePushNotifications, registerPushTap } from '@/lib/push';
 
 function previewOf(text: string, mediaType?: 'image' | 'video' | 'audio'): string {
   if (text?.trim()) return text;
@@ -57,13 +58,23 @@ export function ChatNotifier() {
   }, [userId, subscribe]);
 
   // Ask permission once after login (only if notifications are enabled).
+  // Previously this only covered in-app/backgrounded local notifications —
+  // closed-app push required a separate manual "Enable" tap buried in
+  // Settings that nobody knew to look for, so it silently never got turned
+  // on. Now a single grant here also registers the FCM token, the same way
+  // Settings' manual button does, so closed-app push works from first login.
   useEffect(() => {
-    if (userId && notificationsOn) void requestNotificationPermission();
+    if (!userId || !notificationsOn) return;
+    void requestNotificationPermission().then((granted) => {
+      if (granted) void enablePushNotifications(userId);
+    });
   }, [userId, notificationsOn]);
 
-  // Tapping a native notification opens the chat.
+  // Tapping a native notification opens the chat — local (foreground/backgrounded)
+  // and push (closed-app FCM) taps are two separate native systems.
   useEffect(() => {
     registerNotificationTap(() => navigate('/chat'));
+    registerPushTap(() => navigate('/chat'));
   }, [navigate]);
 
   // Detect genuinely-new incoming messages and alert.

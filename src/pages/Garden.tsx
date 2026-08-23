@@ -459,7 +459,7 @@ export default function Garden() {
                 <p className="text-xs font-bold uppercase tracking-luxe text-rosegold-400">
                   {STAGE_LABELS[stage]}
                 </p>
-                <h2 className="mt-1 font-display text-2xl font-medium text-warmwhite">
+                <h2 className="mt-1 font-display text-2xl font-medium text-[color:var(--ink-strong)]">
                   Saxs & Snowpie's Garden
                 </h2>
               </div>
@@ -467,11 +467,11 @@ export default function Garden() {
                 <p className="font-display text-2xl font-semibold tabular-nums text-rosegold-400">
                   {daysTogether}
                 </p>
-                <p className="text-[0.6rem] uppercase tracking-luxe text-rosegold-200/70">days together</p>
+                <p className="text-[0.6rem] uppercase tracking-luxe text-[color:var(--ink-soft)]">days together</p>
               </div>
             </div>
 
-            <p className="mt-2 text-sm leading-relaxed text-rosegold-100/80">{STAGE_DESC[stage]}</p>
+            <p className="mt-2 text-sm leading-relaxed text-[color:var(--ink-soft)]">{STAGE_DESC[stage]}</p>
 
             {/* Growth Progress Bar */}
             <div className="mt-4">
@@ -494,15 +494,15 @@ export default function Garden() {
               <Button variant="gold" size="lg" className="min-w-0 flex-1 shadow-lg" onClick={doWater}>
                 💧 Water Our Garden
               </Button>
-              <div className="shrink-0 rounded-2xl bg-white/10 px-4 py-2 text-center text-xs text-warmwhite">
+              <div className="shrink-0 rounded-2xl bg-black/5 px-4 py-2 text-center text-xs text-[color:var(--ink-strong)]">
                 <span className="font-bold text-rosegold-400">{waterCount}×</span>
-                <p className="text-[0.55rem] uppercase text-rosegold-200/70">Waters given</p>
+                <p className="text-[0.55rem] uppercase text-[color:var(--ink-soft)]">Waters given</p>
               </div>
             </div>
 
             {found && (
               <motion.p
-                className="mt-4 rounded-2xl border border-rosegold-400/40 bg-rosegold-500/20 p-3 text-xs text-warmwhite"
+                className="mt-4 rounded-2xl border border-rosegold-400/40 bg-rosegold-500/20 p-3 text-xs text-[color:var(--ink-strong)]"
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
               >
@@ -517,9 +517,9 @@ export default function Garden() {
                 { label: 'Care given', value: `${waterCount} drops` },
                 { label: 'Location', value: 'Mbombela 📍' },
               ].map((stat) => (
-                <div key={stat.label} className="rounded-2xl bg-white/5 p-3 border border-white/5">
+                <div key={stat.label} className="rounded-2xl bg-black/5 p-3 border border-black/5">
                   <p className="font-display text-lg font-semibold text-rosegold-400">{stat.value}</p>
-                  <p className="text-[0.6rem] uppercase tracking-luxe text-rosegold-200/60">{stat.label}</p>
+                  <p className="text-[0.6rem] uppercase tracking-luxe text-[color:var(--ink-soft)]">{stat.label}</p>
                 </div>
               ))}
             </div>

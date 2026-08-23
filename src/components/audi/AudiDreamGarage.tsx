@@ -69,14 +69,14 @@ export function AudiDreamGarage({ onClose }: Props) {
         {/* Top Header Bar */}
         <div className="flex items-center justify-between border-b border-white/10 px-6 py-4">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white/10 text-xl font-bold text-warmwhite">
+            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-black/5 text-xl font-bold text-[color:var(--ink-strong)]">
               <span className="font-sans tracking-tighter">OOOO</span>
             </div>
             <div>
               <span className="text-[0.65rem] uppercase tracking-[0.25em] text-rosegold-400">
                 Saxs & Snowpie's Vision
               </span>
-              <h2 className="font-display text-2xl font-semibold text-warmwhite">
+              <h2 className="font-display text-2xl font-semibold text-[color:var(--ink-strong)]">
                 Audi Dream Garage
               </h2>
             </div>
@@ -85,7 +85,7 @@ export function AudiDreamGarage({ onClose }: Props) {
             type="button"
             aria-label="Close"
             onClick={onClose}
-            className="tap flex h-9 w-9 items-center justify-center rounded-full bg-white/10 text-rosegold-300 hover:text-white"
+            className="tap flex h-9 w-9 items-center justify-center rounded-full bg-black/5 text-rosegold-400 hover:text-rosegold-600"
           >
             <CloseIcon width={20} height={20} />
           </button>
@@ -103,7 +103,7 @@ export function AudiDreamGarage({ onClose }: Props) {
               className={`tap whitespace-nowrap rounded-full px-3.5 py-1 text-xs transition-all ${
                 selectedCategory === cat
                   ? 'bg-gradient-to-r from-rosegold-500 to-rose-600 font-semibold text-warmwhite shadow-md'
-                  : 'bg-white/5 text-rosegold-200/70 hover:bg-white/10'
+                  : 'bg-black/5 text-[color:var(--ink-soft)] hover:bg-black/10'
               }`}
             >
               {cat}

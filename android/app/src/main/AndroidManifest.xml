@@ -38,4 +38,8 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Required on Android 13+ (API 33) — without this, the OS silently
+         drops every notification regardless of JS-side permission state
+         or how correctly FCM/the service worker are wired up. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 </manifest>

@@ -87,17 +87,24 @@ function acceptablePasswords(personId: PersonId): Set<string> {
 
 const normalize = (s: string) => s.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
 
-/** The canonical Firebase password for partner auth */
+/**
+ * The real Firebase Auth credential — intentionally NOT derived from the
+ * birthday. This repo is public, and relationship.birthday is committed in
+ * plaintext, so a password computed from it is a password anyone reading
+ * GitHub can compute too. These come from env vars that are never derived
+ * from repo contents and never committed (see .env.example).
+ */
 function firebasePassword(personId: PersonId): string {
-  const person = personById(personId);
-  const [y, m, d] = person.birthday.split('-');
-  return `${d}${m}${y}`; // e.g. 06082003 for Lihle, 14062005 for Phathu
+  return personId === 'her'
+    ? import.meta.env.VITE_FIREBASE_HER_PASSWORD
+    : import.meta.env.VITE_FIREBASE_HIM_PASSWORD;
 }
 
 async function signIntoFirebase(personId: PersonId): Promise<void> {
   if (!FIREBASE_CONFIGURED || !auth) return;
   const email = firebaseEmail(personId);
   const password = firebasePassword(personId);
+  if (!password) return; // Cloud sync env var not set — app still works locally
   try {
     await signInWithEmailAndPassword(auth, email, password);
   } catch (err: unknown) {

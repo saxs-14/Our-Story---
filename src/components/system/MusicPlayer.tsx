@@ -30,13 +30,13 @@ function SpotifyPanel({ onClose }: { onClose: () => void }) {
       <div className="flex items-center justify-between border-b border-rosegold-400/20 px-5 pt-4 pb-3">
         <div>
           <span className="text-[0.65rem] uppercase tracking-luxe text-rosegold-400">Our Soundtrack</span>
-          <h3 className="font-display text-lg font-medium text-warmwhite">Music & Playlists</h3>
+          <h3 className="font-display text-lg font-medium text-[color:var(--ink-strong)]">Music & Playlists</h3>
         </div>
         <button
           type="button"
           aria-label="Close music panel"
           onClick={onClose}
-          className="tap flex h-8 w-8 items-center justify-center rounded-full bg-white/10 text-rosegold-200 hover:text-white"
+          className="tap flex h-8 w-8 items-center justify-center rounded-full bg-black/5 text-rosegold-400 hover:text-rosegold-600"
         >
           ✕
         </button>
@@ -59,7 +59,7 @@ function SpotifyPanel({ onClose }: { onClose: () => void }) {
             className={`tap rounded-xl px-2 py-2 text-[0.68rem] font-medium transition-all ${
               tab === key
                 ? 'bg-gradient-to-br from-rosegold-500 to-rosegold-700 text-warmwhite font-bold shadow-md'
-                : 'bg-white/5 text-rosegold-200/80 hover:bg-white/10'
+                : 'bg-black/5 text-[color:var(--ink-soft)] hover:bg-black/10'
             }`}
           >
             {label}
@@ -101,7 +101,7 @@ function SpotifyPanel({ onClose }: { onClose: () => void }) {
         />
 
         <div className="mt-3 flex items-center justify-between px-1">
-          <p className="text-[0.65rem] text-rosegold-200/70">
+          <p className="text-[0.65rem] text-[color:var(--ink-soft)]">
             Tap ▶ to play · Log in for full tracks
           </p>
           <a

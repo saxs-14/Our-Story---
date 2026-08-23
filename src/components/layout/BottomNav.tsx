@@ -6,6 +6,7 @@ import { MenuIcon, CloseIcon, HeartFilledIcon } from '@/components/icons';
 import { cn } from '@/lib/cn';
 import { haptic } from '@/lib/haptics';
 import { useProgressStore } from '@/store/useProgressStore';
+import { useChatStore } from '@/store/useChatStore';
 
 /**
  * A floating glass dock: 5 primary destinations + a central "More" control
@@ -16,6 +17,7 @@ export function BottomNav() {
   const [open, setOpen] = useState(false);
   const location = useLocation();
   const secretUnlocked = useProgressStore((s) => s.secretUnlocked);
+  const unreadCount = useChatStore((s) => s.unreadCount);
 
   const moreItems = MORE_NAV.filter((n) => !n.secret || secretUnlocked);
   const moreActive = moreItems.some((n) => n.path === location.pathname);
@@ -50,6 +52,14 @@ export function BottomNav() {
                     )}
                   >
                     <item.icon width={22} height={22} />
+                    {item.path === '/chat' && unreadCount > 0 && (
+                      <span
+                        className="absolute -right-1.5 -top-1 flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-rosegold-600 px-1 text-[0.55rem] font-bold text-warmwhite shadow-sm"
+                        aria-label={`${unreadCount} unread messages`}
+                      >
+                        {unreadCount > 99 ? '99+' : unreadCount}
+                      </span>
+                    )}
                   </span>
                   <span
                     className={cn(
