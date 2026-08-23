@@ -17,6 +17,22 @@ const messaging = getMessaging();
 
 const partnerOf = (id) => (id === 'her' ? 'him' : 'her');
 
+// Must match STALE_MS in src/store/usePresenceStore.ts. The client already
+// treats a partner as offline once their heartbeat goes stale (covers
+// crashes/force-quits where pagehide/beforeunload never fires and the
+// presence doc is left stuck at online:true), but this function reads the
+// raw doc directly — without the same cutoff it would trust a stale
+// online:true forever and silently stop sending pushes to that partner.
+const STALE_MS = 45_000;
+
+/** Mirrors the client's staleness check so a crashed device doesn't look online forever. */
+function isActuallyOnline(presence) {
+  if (!presence?.online) return false;
+  const lastActiveMs = presence.lastActive?.toMillis?.();
+  if (lastActiveMs == null) return true;
+  return Date.now() - lastActiveMs < STALE_MS;
+}
+
 /** Clear a device token that FCM says is no longer valid, so we stop trying it. */
 async function forgetStaleToken(personId) {
   await db.doc(`presence/${personId}`).update({ fcmToken: null }).catch(() => {});
@@ -37,12 +53,15 @@ exports.onNewMessage = onDocumentCreated('messages/{messageId}', async (event) =
   if (!data?.senderId) return;
 
   const recipientId = partnerOf(data.senderId);
-  const presenceSnap = await db.doc(`presence/${recipientId}`).get();
-  const presence = presenceSnap.data();
+  const presence = await db
+    .doc(`presence/${recipientId}`)
+    .get()
+    .then((snap) => snap.data())
+    .catch(() => undefined);
 
   // Recipient already has the app open — ChatNotifier covers this in-app,
   // a push on top would just be a redundant buzz.
-  if (presence?.online) return;
+  if (isActuallyOnline(presence)) return;
 
   const token = presence?.fcmToken;
   if (!token) return;
@@ -67,8 +86,12 @@ exports.onNewCall = onDocumentCreated('calls/{callId}', async (event) => {
   const data = event.data?.data();
   if (!data?.calleeId || data.status !== 'offering') return;
 
-  const presenceSnap = await db.doc(`presence/${data.calleeId}`).get();
-  const token = presenceSnap.data()?.fcmToken;
+  const presence = await db
+    .doc(`presence/${data.calleeId}`)
+    .get()
+    .then((snap) => snap.data())
+    .catch(() => undefined);
+  const token = presence?.fcmToken;
   if (!token) return;
 
   const icon = data.type === 'video' ? '📹' : '📞';

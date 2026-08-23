@@ -1,0 +1,20 @@
+rules_version = '2';
+
+// Same rationale as firestore.rules: restrict to the two partner accounts
+// by verified email instead of "any authenticated user", since anyone can
+// self-register a Firebase Auth account against this public repo's project.
+service firebase.storage {
+  match /b/{bucket}/o {
+    function isPartner() {
+      return request.auth != null &&
+        request.auth.token.email in [
+          'phathu@ourstory.app',
+          'lihle@ourstory.app'
+        ];
+    }
+
+    match /{allPaths=**} {
+      allow read, write: if isPartner();
+    }
+  }
+}

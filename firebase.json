@@ -1,4 +1,11 @@
 {
+  "firestore": {
+    "rules": "firestore.rules"
+  },
+  "storage": {
+    "bucket": "our-story-7fedd.firebasestorage.app",
+    "rules": "storage.rules"
+  },
   "functions": [
     {
       "source": "functions",

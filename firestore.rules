@@ -1,0 +1,24 @@
+rules_version = '2';
+
+// Access is restricted to exactly the two partner accounts. Firebase client
+// API keys are not secret and this project's repo is public, so anyone can
+// self-register a Firebase Auth account — the previous rule only checked
+// `request.auth != null`, which let any such stranger read/write every
+// chat message, photo, letter, dream and memory. This checks the signed-in
+// user's verified email against a fixed allowlist instead, so an unrelated
+// account gets zero access regardless of how it was created.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isPartner() {
+      return request.auth != null &&
+        request.auth.token.email in [
+          'phathu@ourstory.app',
+          'lihle@ourstory.app'
+        ];
+    }
+
+    match /{document=**} {
+      allow read, write: if isPartner();
+    }
+  }
+}
