@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence, useMotionValue, useTransform } from 'framer-motion';
+import { motion, AnimatePresence, useMotionValue, useTransform, animate } from 'framer-motion';
 import { PageShell } from '@/components/layout/PageShell';
 import { useChatStore, type ChatMessage, type ReplyPreview } from '@/store/useChatStore';
 import { useAuthStore, personById, partnerOf } from '@/store/useAuthStore';
@@ -456,7 +456,10 @@ function DayDivider({ label }: { label: string }) {
  * Reflects live presence rather than a persisted delivery receipt, matching
  * how this app already tracks online/offline elsewhere.
  */
-function MessageTicks({ read, partnerOnline }: { read: boolean; partnerOnline: boolean }) {
+function MessageTicks({ read, partnerOnline, pending }: { read: boolean; partnerOnline: boolean; pending?: boolean }) {
+  // Still an optimistic local echo — hasn't actually reached Firestore yet
+  // (e.g. sent while offline), so a tick would overclaim delivery.
+  if (pending) return <span className="text-white/40" title="Sending…">🕓</span>;
   if (read) return <span className="font-bold text-[#53bdeb]" title="Seen">✓✓</span>;
   if (partnerOnline) return <span className="font-bold text-white/50" title="Delivered">✓✓</span>;
   return <span className="font-bold text-white/50" title="Sent">✓</span>;
@@ -495,9 +498,19 @@ function MessageBubble({
     isMe ? [-REPLY_SWIPE_THRESHOLD, 0] : [0, REPLY_SWIPE_THRESHOLD],
     [1, 0],
   );
+  // Manual pointer-driven drag rather than framer-motion's `drag` prop —
+  // verified live that `drag`/`onDragEnd` silently never fired on this
+  // element (tested with both a trusted CDP mouse-drag and a dispatched
+  // PointerEvent sequence; the element's transform never moved from
+  // "none" and none of onDrag/onDragEnd's callbacks ran). This reuses the
+  // same pointer tracking as the long-press-to-react gesture below, which
+  // is known to work, so the whole interaction is one verifiable code path.
+  const draggingRef = useRef(false);
+  const swipeMax = isMe ? -80 : 80;
   const pressRef = useRef<{ x: number; y: number; timer: number } | null>(null);
 
   const startPress = (px: number, py: number) => {
+    draggingRef.current = false;
     pressRef.current = {
       x: px,
       y: py,
@@ -510,12 +523,30 @@ function MessageBubble({
   };
   const movePress = (px: number, py: number) => {
     if (!pressRef.current) return;
-    if (Math.hypot(px - pressRef.current.x, py - pressRef.current.y) > 10) {
+    const dx = px - pressRef.current.x;
+    const dy = py - pressRef.current.y;
+    if (!draggingRef.current && Math.hypot(dx, dy) > 10) {
       clearTimeout(pressRef.current.timer);
-      pressRef.current = null;
+      // Only treat it as the reply-swipe once the gesture is clearly more
+      // horizontal than vertical, so it doesn't fight the message list's
+      // own vertical scrolling.
+      if (Math.abs(dx) > Math.abs(dy) * 1.5) draggingRef.current = true;
+      else pressRef.current = null;
+    }
+    if (draggingRef.current) {
+      const clamped = swipeMax < 0 ? Math.max(swipeMax, Math.min(0, dx)) : Math.min(swipeMax, Math.max(0, dx));
+      x.set(clamped);
     }
   };
-  const cancelPress = () => {
+  const endPress = () => {
+    if (draggingRef.current) {
+      if (Math.abs(x.get()) >= REPLY_SWIPE_THRESHOLD) {
+        haptic('soft');
+        onSwipeReply(m);
+      }
+      animate(x, 0, { type: 'spring', stiffness: 500, damping: 32 });
+    }
+    draggingRef.current = false;
     if (pressRef.current) {
       clearTimeout(pressRef.current.timer);
       pressRef.current = null;
@@ -535,26 +566,18 @@ function MessageBubble({
       </motion.span>
 
       <motion.div
-        drag="x"
         style={{ x }}
-        dragDirectionLock
-        dragConstraints={isMe ? { left: -80, right: 0 } : { left: 0, right: 80 }}
-        dragElastic={0.5}
-        dragMomentum={false}
-        onDragEnd={(_e, info) => {
-          if (Math.abs(info.offset.x) >= REPLY_SWIPE_THRESHOLD) {
-            haptic('soft');
-            onSwipeReply(m);
-          }
-        }}
         initial={{ opacity: 0, scale: 0.95, y: 8 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         onDoubleClick={() => onSelect(m.id)}
-        onPointerDown={(e) => startPress(e.clientX, e.clientY)}
+        onPointerDown={(e) => {
+          e.currentTarget.setPointerCapture(e.pointerId);
+          startPress(e.clientX, e.clientY);
+        }}
         onPointerMove={(e) => movePress(e.clientX, e.clientY)}
-        onPointerUp={cancelPress}
-        onPointerLeave={cancelPress}
-        onPointerCancel={cancelPress}
+        onPointerUp={endPress}
+        onPointerLeave={endPress}
+        onPointerCancel={endPress}
         onContextMenu={(e) => e.preventDefault()}
         className={cn(
           'relative max-w-[82%] px-3.5 py-2 text-sm shadow-md transition-all [touch-action:pan-y]',
@@ -621,7 +644,7 @@ function MessageBubble({
 
         <div className="mt-1 flex items-center justify-end gap-1 text-[0.62rem] text-white/60">
           <span>{formatTime(m.timestamp)}</span>
-          {isMe && <MessageTicks read={m.read} partnerOnline={partnerOnline} />}
+          {isMe && <MessageTicks read={m.read} partnerOnline={partnerOnline} pending={m.local} />}
         </div>
 
         {m.reactions && Object.keys(m.reactions).length > 0 && (

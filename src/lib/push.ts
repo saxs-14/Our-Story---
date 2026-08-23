@@ -19,6 +19,11 @@ const isNative = () => Capacitor.isNativePlatform();
 
 let messaging: Messaging | null = null;
 let nativeListenersRegistered = false;
+// The 'registration' listener below is attached once and lives for the
+// whole app session; it must not close over a specific userId, or a later
+// account switch on the same device (or shared testing device) would keep
+// silently writing tokens to the FIRST user's presence doc forever.
+let activePushUserId: PersonId | null = null;
 
 export async function isPushSupported(): Promise<boolean> {
   if (!FIREBASE_CONFIGURED) return false;
@@ -47,11 +52,13 @@ async function registerNativePush(userId: PersonId): Promise<'granted' | 'denied
   }
   if (status !== 'granted') return 'denied';
 
+  activePushUserId = userId;
+
   if (!nativeListenersRegistered) {
     nativeListenersRegistered = true;
     await PushNotifications.addListener('registration', (token) => {
-      if (!db) return;
-      void setDoc(doc(db, 'presence', userId), { fcmToken: token.value }, { merge: true }).catch(() => {});
+      if (!db || !activePushUserId) return;
+      void setDoc(doc(db, 'presence', activePushUserId), { fcmToken: token.value }, { merge: true }).catch(() => {});
     });
     // Errors here just mean this device won't get closed-app push this
     // session — foreground delivery via the Firestore listener still works.
