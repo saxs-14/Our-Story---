@@ -64,9 +64,16 @@ if (!firebaseConfig.apiKey || !firebaseConfig.projectId) {
   process.exit(1);
 }
 
-// Same synthetic account + password the app itself uses (Phathu's birthday: 14 June 2005 -> 14062005)
+// Same synthetic account the app itself uses — the real password lives only
+// in .env.local (VITE_FIREBASE_HIM_PASSWORD), never hardcoded here: this
+// file is committed to a public repo.
 const ACCOUNT_EMAIL = 'phathu@ourstory.app';
-const ACCOUNT_PASSWORD = '14062005';
+const ACCOUNT_PASSWORD = env.VITE_FIREBASE_HIM_PASSWORD;
+
+if (!ACCOUNT_PASSWORD) {
+  console.error('✖ VITE_FIREBASE_HIM_PASSWORD missing from .env.local.');
+  process.exit(1);
+}
 
 async function main() {
   console.log(`→ Connecting to Firebase project: ${firebaseConfig.projectId}`);

@@ -38,8 +38,13 @@ async function main() {
   const auth = getAuth(app);
   const db = getFirestore(app);
 
+  if (!env.VITE_FIREBASE_HIM_PASSWORD) {
+    console.error('✖ VITE_FIREBASE_HIM_PASSWORD missing from .env.local.');
+    process.exit(1);
+  }
+
   console.log(`Scanning Firebase Project: ${firebaseConfig.projectId}...`);
-  await signInWithEmailAndPassword(auth, 'phathu@ourstory.app', '14062005');
+  await signInWithEmailAndPassword(auth, 'phathu@ourstory.app', env.VITE_FIREBASE_HIM_PASSWORD);
   console.log(`✓ Authenticated as phathu@ourstory.app`);
 
   // Check if legacy email ayanda@ourstory.app exists in Auth

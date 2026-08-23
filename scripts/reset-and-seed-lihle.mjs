@@ -1,9 +1,10 @@
 /**
  * Reset and re-seed Firestore database for Phathu (Saxs) & Lihle (Snowpie).
  *
- * 1. Authenticates / updates Firebase Auth accounts:
- *    - phathu@ourstory.app (password: 14062005)
- *    - lihle@ourstory.app  (password: 06082003)
+ * 1. Authenticates / updates Firebase Auth accounts (phathu@ourstory.app,
+ *    lihle@ourstory.app) using the real passwords from .env.local
+ *    (VITE_FIREBASE_HIM_PASSWORD / VITE_FIREBASE_HER_PASSWORD) — never
+ *    hardcode a real password here, this file is committed to a public repo.
  * 2. Purges all previous messages, calls, typing, and presence docs.
  * 3. Deletes all legacy letters, dreams, and memories mentioning Ayanda or old dates.
  * 4. Seeds fresh, romantic, curated starter content exclusively for Saxs & Snowpie.
@@ -18,7 +19,6 @@ import {
   getAuth,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
-  updatePassword,
 } from 'firebase/auth';
 import {
   getFirestore,
@@ -66,13 +66,17 @@ if (!firebaseConfig.apiKey || !firebaseConfig.projectId) {
 }
 
 const PHATHU_EMAIL = 'phathu@ourstory.app';
-const PHATHU_PASSWORD = '14062005'; // Birthday: 14 June 2005
-const PHATHU_LEGACY_PASSWORD = '08052026'; // Old password from previous relationshipStart
+const PHATHU_PASSWORD = env.VITE_FIREBASE_HIM_PASSWORD;
 
 const LIHLE_EMAIL = 'lihle@ourstory.app';
-const LIHLE_PASSWORD = '06082003'; // Birthday: 06 August 2003
+const LIHLE_PASSWORD = env.VITE_FIREBASE_HER_PASSWORD;
 
-async function setupAuthAccount(auth, email, targetPassword, legacyPassword) {
+if (!PHATHU_PASSWORD || !LIHLE_PASSWORD) {
+  console.error('✖ VITE_FIREBASE_HIM_PASSWORD / VITE_FIREBASE_HER_PASSWORD missing from .env.local.');
+  process.exit(1);
+}
+
+async function setupAuthAccount(auth, email, targetPassword) {
   console.log(`\n→ Syncing Auth account: ${email}`);
   try {
     const cred = await signInWithEmailAndPassword(auth, email, targetPassword);
@@ -81,18 +85,7 @@ async function setupAuthAccount(auth, email, targetPassword, legacyPassword) {
   } catch (err) {
     const code = err?.code;
     if (code === 'auth/invalid-credential' || code === 'auth/wrong-password') {
-      if (legacyPassword) {
-        try {
-          console.log(`ℹ Trying legacy password for ${email}...`);
-          const cred = await signInWithEmailAndPassword(auth, email, legacyPassword);
-          console.log(`✓ Signed in with legacy password. Updating password to ${targetPassword}...`);
-          await updatePassword(cred.user, targetPassword);
-          console.log(`✓ Successfully updated password for ${email} to ${targetPassword}.`);
-          return cred.user;
-        } catch (updateErr) {
-          console.warn(`✖ Failed to update legacy password:`, updateErr?.code || updateErr);
-        }
-      }
+      console.warn(`✖ Password in .env.local doesn't match the live account for ${email}. If you rotated it recently, update VITE_FIREBASE_HIM_PASSWORD / VITE_FIREBASE_HER_PASSWORD to match.`);
     } else if (code === 'auth/user-not-found') {
       try {
         const cred = await createUserWithEmailAndPassword(auth, email, targetPassword);
@@ -136,7 +129,7 @@ async function main() {
   const db = getFirestore(app);
 
   // 1. Ensure Auth Accounts are ready & passwords in sync
-  await setupAuthAccount(auth, PHATHU_EMAIL, PHATHU_PASSWORD, PHATHU_LEGACY_PASSWORD);
+  await setupAuthAccount(auth, PHATHU_EMAIL, PHATHU_PASSWORD);
   await setupAuthAccount(auth, LIHLE_EMAIL, LIHLE_PASSWORD);
 
   // Sign in as Phathu to perform Firestore operations
