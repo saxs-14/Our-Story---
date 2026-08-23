@@ -9,9 +9,9 @@
  * depend on this working.
  */
 import { getMessaging, getToken, onMessage, isSupported, type Messaging } from 'firebase/messaging';
-import { doc, setDoc } from 'firebase/firestore';
+import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { Capacitor } from '@capacitor/core';
-import { app, db, FIREBASE_CONFIGURED } from '@/lib/firebase';
+import { app, db, auth, FIREBASE_CONFIGURED } from '@/lib/firebase';
 import type { PersonId } from '@/store/useAuthStore';
 
 const VAPID_KEY = import.meta.env.VITE_FIREBASE_VAPID_KEY as string | undefined;
@@ -24,6 +24,10 @@ let nativeListenersRegistered = false;
 // account switch on the same device (or shared testing device) would keep
 // silently writing tokens to the FIRST user's presence doc forever.
 let activePushUserId: PersonId | null = null;
+// The web path's catch-all used to swallow the real error entirely, which
+// makes "why doesn't push work on my iPhone" unanswerable from the outside —
+// keep the last one around so the Settings diagnostics panel can show it.
+let lastPushError: string | null = null;
 
 export async function isPushSupported(): Promise<boolean> {
   if (!FIREBASE_CONFIGURED) return false;
@@ -116,12 +120,21 @@ export async function checkNotificationPermission(): Promise<NotificationPermiss
 export async function enablePushNotifications(
   userId: PersonId,
 ): Promise<'granted' | 'denied' | 'unsupported'> {
-  if (!(await isPushSupported()) || !db) return 'unsupported';
+  lastPushError = null;
+  if (!(await isPushSupported())) {
+    lastPushError = 'isPushSupported() returned false — see getPushDiagnostics() for why';
+    return 'unsupported';
+  }
+  if (!db) {
+    lastPushError = 'Firestore not initialized (FIREBASE_CONFIGURED is false)';
+    return 'unsupported';
+  }
 
   if (isNative()) {
     try {
       return await registerNativePush(userId);
-    } catch {
+    } catch (err) {
+      lastPushError = err instanceof Error ? err.message : String(err);
       return 'unsupported';
     }
   }
@@ -139,13 +152,87 @@ export async function enablePushNotifications(
     });
     if (token) {
       await setDoc(doc(db, 'presence', userId), { fcmToken: token }, { merge: true });
+    } else {
+      lastPushError = 'getToken() resolved with no token';
     }
     // Foreground messages are already covered by ChatNotifier/CallModal's
     // live Firestore listeners — registering this just satisfies the SDK's
     // expectation that foreground pushes have a handler.
     onMessage(messaging, () => {});
     return 'granted';
-  } catch {
+  } catch (err) {
+    // Most commonly, on Safari/iOS: a getToken()/subscribe() failure, or the
+    // presence-doc setDoc() being rejected by Firestore rules because this
+    // device was never actually signed into Firebase Auth in the first
+    // place (see getPushDiagnostics().signedIn).
+    lastPushError = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
     return 'unsupported';
   }
+}
+
+export function getLastPushError(): string | null {
+  return lastPushError;
+}
+
+export interface PushDiagnostics {
+  platform: 'native' | 'web';
+  userAgent: string;
+  isIOS: boolean;
+  /** Only meaningful on iOS: must be true (installed to Home Screen) for Web Push to be possible at all. */
+  isStandalone: boolean;
+  firebaseConfigured: boolean;
+  vapidKeyConfigured: boolean;
+  /** Whether this device currently has a real Firebase Auth session — a missing one silently
+   *  breaks push (and all cloud sync) because Firestore rules reject unauthenticated writes. */
+  signedIn: boolean;
+  signedInAs: string | null;
+  serviceWorkerApiPresent: boolean;
+  pushManagerApiPresent: boolean;
+  notificationApiPresent: boolean;
+  pushSupported: boolean;
+  permission: NotificationPermission | 'unsupported';
+  /** Whether a token is actually saved server-side right now for this account (any device). */
+  tokenSavedInFirestore: boolean;
+  lastError: string | null;
+}
+
+/** Full snapshot of push readiness — built for the Settings diagnostics panel so
+ * "does push work on my iPhone" has a concrete, on-screen answer instead of a guess. */
+export async function getPushDiagnostics(userId: PersonId | null): Promise<PushDiagnostics> {
+  const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
+  const isIOS =
+    /iPad|iPhone|iPod/.test(ua) ||
+    (typeof navigator !== 'undefined' && navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const isStandalone =
+    typeof window !== 'undefined' &&
+    (window.matchMedia?.('(display-mode: standalone)').matches ||
+      (window.navigator as unknown as { standalone?: boolean }).standalone === true);
+
+  let tokenSavedInFirestore = false;
+  if (userId && db) {
+    try {
+      const snap = await getDoc(doc(db, 'presence', userId));
+      tokenSavedInFirestore = Boolean(snap.exists() && snap.data()?.fcmToken);
+    } catch {
+      // Can't read it (e.g. not signed in) — leave as false, signedIn already covers why.
+    }
+  }
+
+  return {
+    platform: isNative() ? 'native' : 'web',
+    userAgent: ua,
+    isIOS,
+    isStandalone,
+    firebaseConfigured: FIREBASE_CONFIGURED,
+    vapidKeyConfigured: Boolean(VAPID_KEY),
+    signedIn: Boolean(auth?.currentUser),
+    signedInAs: auth?.currentUser?.email ?? null,
+    serviceWorkerApiPresent: typeof navigator !== 'undefined' && 'serviceWorker' in navigator,
+    pushManagerApiPresent: typeof window !== 'undefined' && 'PushManager' in window,
+    notificationApiPresent: typeof window !== 'undefined' && 'Notification' in window,
+    pushSupported: await isPushSupported(),
+    permission: await checkNotificationPermission(),
+    tokenSavedInFirestore,
+    lastError: lastPushError,
+  };
 }

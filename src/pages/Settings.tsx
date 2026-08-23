@@ -7,7 +7,13 @@ import { Button } from '@/components/ui/Button';
 import { useAppStore, type MotionPref, type ThemeName } from '@/store/useAppStore';
 import { useProgressStore } from '@/store/useProgressStore';
 import { useAuthStore, personById } from '@/store/useAuthStore';
-import { isPushSupported, checkNotificationPermission, enablePushNotifications } from '@/lib/push';
+import {
+  isPushSupported,
+  checkNotificationPermission,
+  enablePushNotifications,
+  getPushDiagnostics,
+  type PushDiagnostics,
+} from '@/lib/push';
 import relationship from '@/config/relationship';
 import { formatLongDate } from '@/lib/time';
 import { cn } from '@/lib/cn';
@@ -36,6 +42,22 @@ function Row({ label, hint, children }: { label: string; hint?: string; children
         {hint && <p className="text-xs text-[color:var(--ink-soft)]">{hint}</p>}
       </div>
       {children}
+    </div>
+  );
+}
+
+function DiagRow({ label, ok, value }: { label: string; ok?: boolean; value: string }) {
+  return (
+    <div className="flex items-center justify-between gap-3 py-1 text-xs">
+      <span className="text-[color:var(--ink-soft)]">{label}</span>
+      <span
+        className={cn(
+          'text-right font-semibold',
+          ok === true ? 'text-emerald-500' : ok === false ? 'text-rose-500' : 'text-[color:var(--ink-strong)]',
+        )}
+      >
+        {value}
+      </span>
     </div>
   );
 }
@@ -80,6 +102,29 @@ export default function Settings() {
     haptic('tap');
     const result = await enablePushNotifications(userId);
     setPushState(result);
+    if (showDiagnostics) void refreshDiagnostics();
+  };
+
+  // On-screen diagnostics — for "does push actually work on this specific
+  // device" questions (iOS/Safari especially) that can't be answered from a
+  // desktop browser. Fetched on demand rather than always, since most of
+  // this is only meaningful to read once, deliberately.
+  const [showDiagnostics, setShowDiagnostics] = useState(false);
+  const [diagnostics, setDiagnostics] = useState<PushDiagnostics | null>(null);
+  const [diagnosticsLoading, setDiagnosticsLoading] = useState(false);
+  const refreshDiagnostics = async () => {
+    setDiagnosticsLoading(true);
+    try {
+      setDiagnostics(await getPushDiagnostics(userId));
+    } finally {
+      setDiagnosticsLoading(false);
+    }
+  };
+  const toggleDiagnostics = () => {
+    haptic('tap');
+    const next = !showDiagnostics;
+    setShowDiagnostics(next);
+    if (next) void refreshDiagnostics();
   };
 
   return (
@@ -146,6 +191,60 @@ export default function Settings() {
             <Button variant="glass" size="sm" onClick={handleEnablePush}>Enable</Button>
           )}
         </Row>
+        <div className="hairline" />
+        <button
+          type="button"
+          onClick={toggleDiagnostics}
+          className="tap flex w-full items-center justify-between py-3 text-left text-xs text-[color:var(--ink-soft)]"
+        >
+          <span>Push diagnostics — what's actually happening on this device</span>
+          <span className="text-rosegold-500">{showDiagnostics ? 'Hide' : 'Show'}</span>
+        </button>
+
+        {showDiagnostics && (
+          <div className="mb-3 rounded-2xl bg-black/5 p-3.5">
+            {diagnosticsLoading || !diagnostics ? (
+              <p className="py-2 text-center text-xs text-[color:var(--ink-soft)]">Checking…</p>
+            ) : (
+              <>
+                <DiagRow label="Platform" value={diagnostics.platform === 'native' ? 'Native app' : 'Web'} />
+                <DiagRow label="Device" value={diagnostics.isIOS ? 'iOS' : 'Other'} />
+                {diagnostics.isIOS && (
+                  <DiagRow
+                    label="Opened from Home Screen"
+                    ok={diagnostics.isStandalone}
+                    value={diagnostics.isStandalone ? 'Yes' : 'No — open the Home Screen icon, not Safari'}
+                  />
+                )}
+                <DiagRow label="Firebase configured" ok={diagnostics.firebaseConfigured} value={diagnostics.firebaseConfigured ? 'Yes' : 'No'} />
+                <DiagRow
+                  label="Signed into Firebase"
+                  ok={diagnostics.signedIn}
+                  value={diagnostics.signedIn ? diagnostics.signedInAs || 'Yes' : 'No — cloud sync & push can’t work'}
+                />
+                <DiagRow label="VAPID key configured" ok={diagnostics.vapidKeyConfigured} value={diagnostics.vapidKeyConfigured ? 'Yes' : 'No'} />
+                <DiagRow label="Notification permission" ok={diagnostics.permission === 'granted'} value={diagnostics.permission} />
+                <DiagRow
+                  label="Device token saved"
+                  ok={diagnostics.tokenSavedInFirestore}
+                  value={diagnostics.tokenSavedInFirestore ? 'Yes' : 'No'}
+                />
+                {diagnostics.lastError && (
+                  <div className="mt-2 rounded-xl bg-rose-500/10 p-2 text-[0.68rem] leading-relaxed text-rose-500">
+                    {diagnostics.lastError}
+                  </div>
+                )}
+                <button
+                  type="button"
+                  onClick={() => { haptic('tap'); void refreshDiagnostics(); }}
+                  className="tap mt-2 text-[0.68rem] font-semibold text-rosegold-500"
+                >
+                  Refresh
+                </button>
+              </>
+            )}
+          </div>
+        )}
       </GlassCard>
 
       <h2 className="mb-2 mt-6 px-1 font-display text-xl text-[color:var(--ink-strong)]">Our dates</h2>
