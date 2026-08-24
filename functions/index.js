@@ -243,17 +243,23 @@ exports.signInAsPartner = onCall({ region: 'africa-south1' }, async (request) =>
   }
 
   // Rate limit BEFORE checking the answer, so failed attempts (which is the
-  // scenario this is actually defending against) always count.
+  // scenario this is actually defending against) always count. Wrapped in a
+  // transaction: a plain read-then-write here let concurrent requests all
+  // read the same pre-increment count and race past the cap together,
+  // since none of them had committed their increment yet when the others
+  // read. The transaction serializes the read-check-write per personId.
   const attemptRef = db.doc(`authAttempts/${personId}`);
   const now = Date.now();
-  const attemptData = (await attemptRef.get()).data();
-  const withinWindow = now - (attemptData?.windowStart ?? 0) < RATE_LIMIT_WINDOW_MS;
-  const count = withinWindow ? (attemptData?.count ?? 0) : 0;
+  await db.runTransaction(async (tx) => {
+    const attemptData = (await tx.get(attemptRef)).data();
+    const withinWindow = now - (attemptData?.windowStart ?? 0) < RATE_LIMIT_WINDOW_MS;
+    const count = withinWindow ? (attemptData?.count ?? 0) : 0;
 
-  if (withinWindow && count >= RATE_LIMIT_MAX_ATTEMPTS) {
-    throw new HttpsError('resource-exhausted', 'Too many attempts — try again later.');
-  }
-  await attemptRef.set({ count: count + 1, windowStart: withinWindow ? attemptData.windowStart : now });
+    if (withinWindow && count >= RATE_LIMIT_MAX_ATTEMPTS) {
+      throw new HttpsError('resource-exhausted', 'Too many attempts — try again later.');
+    }
+    tx.set(attemptRef, { count: count + 1, windowStart: withinWindow ? attemptData.windowStart : now });
+  });
 
   const accepted = new Set([...acceptableAnswers(personId)].map(normalizeAnswer));
   if (!accepted.has(normalizeAnswer(answer))) {
