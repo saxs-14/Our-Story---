@@ -11,6 +11,9 @@ dist
 dist-ssr
 *.local
 
+# Claude Code worktree scratch space (created/removed by the harness)
+.claude/worktrees/
+
 # Editor
 .vscode/*
 !.vscode/extensions.json
