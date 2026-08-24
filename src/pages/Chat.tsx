@@ -18,6 +18,24 @@ import { useSound } from '@/hooks/useSound';
 
 const QUICK_EMOJIS = ['❤️', '🌹', '🥹', '🔥', '❄️', '✨', '😘', '💍'];
 
+/**
+ * Picks a real, browser-supported recording format instead of trusting a
+ * hardcoded 'audio/webm' — Safari (iOS/Mac) has no WebM/Opus encoder at
+ * all and actually records audio/mp4 (AAC) regardless of what label you
+ * put on it afterward, which was the root cause of Safari being unable to
+ * play back its own recordings (Firefox/Chrome could still play the real
+ * bytes despite the wrong Content-Type, but Safari's stricter type
+ * checking rejected them outright). audio/mp4 is listed first because
+ * it's the one format every major engine can *play* even though only
+ * Safari can currently *record* it — if that ever changes, this keeps
+ * preferring the most broadly compatible option.
+ */
+function pickRecordingMimeType(): string | undefined {
+  if (typeof MediaRecorder === 'undefined' || !MediaRecorder.isTypeSupported) return undefined;
+  const candidates = ['audio/mp4', 'audio/webm;codecs=opus', 'audio/webm', 'audio/aac', 'audio/ogg;codecs=opus'];
+  return candidates.find((type) => MediaRecorder.isTypeSupported(type));
+}
+
 function formatTime(ms: number) {
   const d = new Date(ms);
   return d.toLocaleTimeString('en-ZA', { hour: '2-digit', minute: '2-digit', hour12: false });
@@ -54,6 +72,7 @@ function VoiceNoteBubble({
   const [progress, setProgress] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
   const [speed, setSpeed] = useState<1 | 1.5 | 2>(1);
+  const [playError, setPlayError] = useState(false);
 
   const togglePlay = () => {
     if (!audioRef.current) return;
@@ -62,9 +81,17 @@ function VoiceNoteBubble({
       audioRef.current.pause();
       setIsPlaying(false);
     } else {
+      setPlayError(false);
       audioRef.current.playbackRate = speed;
-      audioRef.current.play().catch(() => {});
-      setIsPlaying(true);
+      // Only report "playing" once playback actually starts — the previous
+      // version set this unconditionally and silently swallowed the error,
+      // so a voice note this device can't decode looked like it was playing
+      // (pause icon, waveform ready to animate) while producing no sound at
+      // all, with no way to tell the two situations apart.
+      audioRef.current
+        .play()
+        .then(() => setIsPlaying(true))
+        .catch(() => setPlayError(true));
     }
   };
 
@@ -98,6 +125,13 @@ function VoiceNoteBubble({
         src={audioUrl}
         onTimeUpdate={onTimeUpdate}
         onEnded={onEnded}
+        onError={() => {
+          // Some decode failures surface here (an element-level error event)
+          // rather than as a rejected play() promise, depending on browser
+          // and timing — covering both is what actually catches every case.
+          setIsPlaying(false);
+          setPlayError(true);
+        }}
         preload="metadata"
       />
 
@@ -141,16 +175,22 @@ function VoiceNoteBubble({
           })}
         </div>
 
-        <div className="flex items-center justify-between text-[0.62rem] opacity-80">
-          <span>{formatAudioDuration(isPlaying ? currentTime : duration || 0)}</span>
-          <button
-            type="button"
-            onClick={toggleSpeed}
-            className="tap rounded px-1 font-bold text-[0.6rem] bg-black/20 hover:bg-black/40"
-          >
-            {speed}×
-          </button>
-        </div>
+        {playError ? (
+          <p className="text-[0.62rem] text-rosegold-200">
+            Can't play this voice note on your device
+          </p>
+        ) : (
+          <div className="flex items-center justify-between text-[0.62rem] opacity-80">
+            <span>{formatAudioDuration(isPlaying ? currentTime : duration || 0)}</span>
+            <button
+              type="button"
+              onClick={toggleSpeed}
+              className="tap rounded px-1 font-bold text-[0.6rem] bg-black/20 hover:bg-black/40"
+            >
+              {speed}×
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -833,7 +873,10 @@ export default function Chat() {
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const recorder = new MediaRecorder(stream);
+      const preferredMimeType = pickRecordingMimeType();
+      const recorder = preferredMimeType
+        ? new MediaRecorder(stream, { mimeType: preferredMimeType })
+        : new MediaRecorder(stream);
       mediaRecorderRef.current = recorder;
       audioChunksRef.current = [];
 
@@ -842,7 +885,12 @@ export default function Chat() {
       };
 
       recorder.onstop = async () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        // recorder.mimeType is the browser's own report of what it actually
+        // produced — more reliable than the type we requested, since browsers
+        // can normalize/append codec details. Falls back to a plain 'audio/webm'
+        // guess only if the browser doesn't expose it at all.
+        const actualMimeType = recorder.mimeType || preferredMimeType || 'audio/webm';
+        const audioBlob = new Blob(audioChunksRef.current, { type: actualMimeType });
         stream.getTracks().forEach((track) => track.stop());
         if (userId) setActivity(userId, null);
 

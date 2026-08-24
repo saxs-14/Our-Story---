@@ -236,7 +236,15 @@ export const useChatStore = create<ChatState>()(
         if (!FIREBASE_CONFIGURED || !storage || !db) return;
 
         set({ uploading: true, uploadProgress: 0 });
-        const ext = file.type.includes('audio') ? 'webm' : file.type.includes('video') ? 'mp4' : 'jpg';
+        // Derived from the file's real mimetype subtype rather than hardcoded
+        // 'webm' — voice notes recorded on Safari are actually audio/mp4 (see
+        // Chat.tsx's startRecording), and this extension previously lied
+        // about that regardless of what was actually recorded.
+        const ext = file.type.includes('audio')
+          ? file.type.split('/')[1]?.split(';')[0] || 'webm'
+          : file.type.includes('video')
+          ? 'mp4'
+          : 'jpg';
         const filename = (file as File).name || `voice-note-${Date.now()}.${ext}`;
         const path = `chat/${senderId}/${Date.now()}_${filename}`;
         const sRef = ref(storage, path);
