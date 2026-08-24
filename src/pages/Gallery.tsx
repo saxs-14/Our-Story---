@@ -111,7 +111,15 @@ function UploadModal({ onClose }: { onClose: () => void }) {
   );
 }
 
-function ItemDisplay({ item, className }: { item: GalleryItem; className?: string }) {
+function ItemDisplay({
+  item,
+  className,
+  fit = 'cover',
+}: {
+  item: GalleryItem;
+  className?: string;
+  fit?: 'cover' | 'contain';
+}) {
   const url = useMediaUrl(item.mediaId);
   const finalSrc = item.mediaUrl || url;
 
@@ -128,7 +136,7 @@ function ItemDisplay({ item, className }: { item: GalleryItem; className?: strin
       src={finalSrc}
       alt={item.caption}
       loading="lazy"
-      className={cn('h-full w-full object-cover', className)}
+      className={cn('h-full w-full', fit === 'contain' ? 'object-contain' : 'object-cover', className)}
     />
   );
 }
@@ -381,7 +389,7 @@ export default function Gallery() {
               className="flex max-h-[70vh] w-full max-w-lg flex-col items-center justify-center overflow-hidden rounded-3xl"
             >
               <div className="max-h-[60vh] w-full overflow-hidden rounded-3xl shadow-2xl">
-                <ItemDisplay item={list[index]} />
+                <ItemDisplay item={list[index]} fit="contain" />
               </div>
               <p className="mt-4 text-center font-script text-2xl text-warmwhite">{list[index].caption}</p>
               <p className="text-xs text-rosegold-300">Added by {personById(list[index].authorId).nickname}</p>
