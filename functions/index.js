@@ -6,10 +6,10 @@
  * Requires the Blaze (pay-as-you-go) billing plan; Cloud Functions don't
  * run at all on the free Spark plan.
  */
-const { onDocumentCreated } = require('firebase-functions/v2/firestore');
+const { onDocumentCreated, onDocumentWritten } = require('firebase-functions/v2/firestore');
 const { onCall, HttpsError } = require('firebase-functions/v2/https');
 const { initializeApp } = require('firebase-admin/app');
-const { getFirestore } = require('firebase-admin/firestore');
+const { getFirestore, FieldValue } = require('firebase-admin/firestore');
 const { getMessaging } = require('firebase-admin/messaging');
 const { getAuth } = require('firebase-admin/auth');
 
@@ -105,6 +105,77 @@ exports.onNewCall = onDocumentCreated('calls/{callId}', async (event) => {
     },
     data: { url: '/' },
     webpush: { fcmOptions: { link: '/' } },
+  });
+});
+
+// ── Live location movement alerts ────────────────────────────────────────
+//
+// Tracking itself is entirely client-side and foreground-only (see
+// src/store/useLocationStore.ts) — this function's only job is deciding
+// when a partner's position change is worth a push notification, so the
+// other partner finds out even if their own app isn't open right now.
+
+const MOVEMENT_THRESHOLD_METERS = 500;
+const MOVEMENT_NOTIFY_COOLDOWN_MS = 15 * 60_000;
+
+/** Same great-circle formula as src/lib/geo.ts's haversineMeters. */
+function haversineMeters(lat1, lng1, lat2, lng2) {
+  const R = 6_371_000;
+  const toRad = (d) => (d * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+exports.onLocationUpdate = onDocumentWritten('locations/{personId}', async (event) => {
+  const personId = event.params.personId;
+  const before = event.data?.before?.data();
+  const after = event.data?.after?.data();
+  if (!after || after.sharing === false) return;
+  if (typeof after.lat !== 'number' || typeof after.lng !== 'number') return;
+
+  // This function writes lastNotifiedLat/Lng/At back to this same document
+  // below, which would otherwise re-trigger this same function forever —
+  // if lat/lng didn't actually change, this write was that self-triggered
+  // update (or some other metadata-only write), not a real position change.
+  if (before && before.lat === after.lat && before.lng === after.lng) return;
+
+  const hasBaseline = typeof after.lastNotifiedLat === 'number' && typeof after.lastNotifiedLng === 'number';
+  if (hasBaseline) {
+    const movedMeters = haversineMeters(after.lat, after.lng, after.lastNotifiedLat, after.lastNotifiedLng);
+    const cooldownElapsed =
+      !after.lastNotifiedAt || Date.now() - after.lastNotifiedAt.toMillis() > MOVEMENT_NOTIFY_COOLDOWN_MS;
+    if (movedMeters < MOVEMENT_THRESHOLD_METERS || !cooldownElapsed) return;
+  }
+
+  await db.doc(`locations/${personId}`).set(
+    { lastNotifiedLat: after.lat, lastNotifiedLng: after.lng, lastNotifiedAt: FieldValue.serverTimestamp() },
+    { merge: true },
+  );
+  // First-ever position of a sharing session just establishes the
+  // baseline — nothing to compare "movement" against yet, so no alert.
+  if (!hasBaseline) return;
+
+  const recipientId = partnerOf(personId);
+  const presence = await db
+    .doc(`presence/${recipientId}`)
+    .get()
+    .then((snap) => snap.data())
+    .catch(() => undefined);
+  // Recipient already has the app open — they'll see the live update on
+  // the Location page, a push on top would just be a redundant buzz.
+  if (isActuallyOnline(presence)) return;
+
+  const token = presence?.fcmToken;
+  if (!token) return;
+
+  const name = personId === 'her' ? 'Snowpie' : 'Saxs';
+  await sendPush(token, recipientId, {
+    notification: { title: 'Our Story', body: `📍 ${name} is on the move` },
+    data: { url: '/location' },
+    webpush: { fcmOptions: { link: '/location' } },
   });
 });
 

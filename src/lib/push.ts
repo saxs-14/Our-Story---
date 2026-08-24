@@ -75,13 +75,21 @@ async function registerNativePush(userId: PersonId): Promise<'granted' | 'denied
 
 let pushTapRegistered = false;
 
-/** On native, route to the chat when a background push notification is tapped. */
-export function registerPushTap(onTap: () => void): void {
+/**
+ * On native, route to wherever a background push notification was actually
+ * for when it's tapped — reads the `url` field this app's Cloud Functions
+ * always include in the FCM `data` payload (e.g. '/chat', '/location').
+ * Falls back to '/chat' when absent, matching the previous hardcoded
+ * behavior for any push that doesn't set it.
+ */
+export function registerPushTap(onTap: (url?: string) => void): void {
   if (!isNative() || pushTapRegistered) return;
   pushTapRegistered = true;
   import('@capacitor/push-notifications')
     .then(({ PushNotifications }) => {
-      void PushNotifications.addListener('pushNotificationActionPerformed', onTap);
+      void PushNotifications.addListener('pushNotificationActionPerformed', (action) => {
+        onTap(action.notification?.data?.url as string | undefined);
+      });
     })
     .catch(() => {
       pushTapRegistered = false;

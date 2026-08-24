@@ -11,6 +11,7 @@ import { setHapticsEnabled } from '@/lib/haptics';
 import { useAuthStore, partnerOf } from '@/store/useAuthStore';
 import { usePresenceStore } from '@/store/usePresenceStore';
 import { useContentStore } from '@/store/useContentStore';
+import { useLocationStore } from '@/store/useLocationStore';
 import { AuroraBackground } from '@/components/fx/AuroraBackground';
 import { ParticleField } from '@/components/fx/ParticleField';
 import { BottomNav } from '@/components/layout/BottomNav';
@@ -36,6 +37,7 @@ const Garden = lazy(() => import('@/pages/Garden'));
 const Dreams = lazy(() => import('@/pages/Dreams'));
 const Letters = lazy(() => import('@/pages/Letters'));
 const Statistics = lazy(() => import('@/pages/Statistics'));
+const Location = lazy(() => import('@/pages/Location'));
 const Wrapped = lazy(() => import('@/pages/Wrapped'));
 const Secret = lazy(() => import('@/pages/Secret'));
 const Settings = lazy(() => import('@/pages/Settings'));
@@ -96,6 +98,7 @@ export default function App() {
     usePresenceStore.getState().start(userId, partnerOf(userId));
     useContentStore.getState().startProfileSync();
     useContentStore.getState().startContentSync();
+    useLocationStore.getState().start(userId, partnerOf(userId));
 
     // Keep background push token fresh for locked screen / background notifications
     import('@/lib/push').then(({ isPushSupported, currentNotificationPermission, enablePushNotifications }) => {
@@ -110,6 +113,7 @@ export default function App() {
       usePresenceStore.getState().stop();
       useContentStore.getState().stopProfileSync();
       useContentStore.getState().stopContentSync();
+      useLocationStore.getState().stop();
     };
   }, [userId]);
 
@@ -160,6 +164,7 @@ export default function App() {
                 <Route path="/dreams" element={<Dreams />} />
                 <Route path="/letters" element={<Letters />} />
                 <Route path="/statistics" element={<Statistics />} />
+                <Route path="/location" element={<Location />} />
                 <Route path="/wrapped" element={<Wrapped />} />
                 <Route path="/secret" element={<Secret />} />
                 <Route path="/settings" element={<Settings />} />

@@ -208,3 +208,10 @@ export const BellIcon = (p: IconProps) => (
     <path d="M10 19a2 2 0 0 0 4 0" />
   </Base>
 );
+
+export const LocationIcon = (p: IconProps) => (
+  <Base {...p}>
+    <path d="M12 21s7-6.2 7-11.5A7 7 0 0 0 5 9.5C5 14.8 12 21 12 21Z" />
+    <circle cx="12" cy="9.5" r="2.3" />
+  </Base>
+);

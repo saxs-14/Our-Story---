@@ -13,6 +13,7 @@ import {
   WrappedIcon,
   KeyIcon,
   ChatIcon,
+  LocationIcon,
 } from '@/components/icons';
 
 export interface NavItem {
@@ -37,6 +38,7 @@ export const NAV_ITEMS: NavItem[] = [
   { path: '/dreams', label: 'Dreams', icon: StarIcon, blurb: "The future we're building" },
   { path: '/letters', label: 'Letters', icon: LetterIcon, blurb: 'A library of love letters' },
   { path: '/statistics', label: 'Statistics', icon: StatsIcon, blurb: 'Our story in numbers' },
+  { path: '/location', label: 'Location', icon: LocationIcon, blurb: 'Share where you are, live' },
   { path: '/wrapped', label: 'Wrapped', icon: WrappedIcon, blurb: 'Our story, replayed' },
   { path: '/secret', label: 'Secret', icon: KeyIcon, secret: true, blurb: 'Hidden, just for you' },
 ];

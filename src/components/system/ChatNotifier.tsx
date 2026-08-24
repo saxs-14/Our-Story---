@@ -75,11 +75,14 @@ export function ChatNotifier() {
     }
   }, [userId, notificationsOn]);
 
-  // Tapping a native notification opens the chat — local (foreground/backgrounded)
-  // and push (closed-app FCM) taps are two separate native systems.
+  // Tapping a native notification routes to wherever it was actually for —
+  // local (foreground/backgrounded) and push (closed-app FCM) taps are two
+  // separate native systems, both defaulting to '/chat' when no specific
+  // route/url was set (matches every notification this app sent before the
+  // Location feature, which was always chat-only).
   useEffect(() => {
-    registerNotificationTap(() => navigate('/chat'));
-    registerPushTap(() => navigate('/chat'));
+    registerNotificationTap((route) => navigate(route || '/chat'));
+    registerPushTap((url) => navigate(url || '/chat'));
   }, [navigate]);
 
   // Detect genuinely-new incoming messages and alert.

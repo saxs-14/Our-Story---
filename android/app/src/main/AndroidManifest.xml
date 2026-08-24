@@ -42,4 +42,10 @@
          drops every notification regardless of JS-side permission state
          or how correctly FCM/the service worker are wired up. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Foreground-only location (Location page). Deliberately no
+         ACCESS_BACKGROUND_LOCATION — tracking only runs while the app is
+         open on screen, which needs just the standard "while using the
+         app" permission the OS already prompts for with these two. -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 </manifest>
