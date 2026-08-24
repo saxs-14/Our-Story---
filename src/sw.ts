@@ -57,10 +57,24 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
+// Single shared tag for every chat-push notification shown by this service
+// worker. Same tag means the OS/browser replaces an existing shown
+// notification instead of stacking a second one alongside it, which is the
+// safety net if the platform's own auto-display (triggered by the FCM
+// payload's `notification` field) fires in addition to this explicit call.
+const CHAT_NOTIFICATION_TAG = 'our-story-chat';
+
 if (firebaseConfig.apiKey && firebaseConfig.projectId) {
   const app = initializeApp(firebaseConfig);
   const messaging = getMessaging(app);
 
+  // This is the ONLY push-display path in this service worker. A previous
+  // version also had a raw `self.addEventListener('push', ...)` "fallback"
+  // handler that showed a second notification for the same push (different
+  // tag, so it didn't replace this one — it stacked). This app only ever
+  // sends FCM-shaped pushes from functions/index.js's onNewMessage, which
+  // onBackgroundMessage already fully covers, so the fallback caught
+  // nothing real and only duplicated. Do not re-add a second listener here.
   onBackgroundMessage(messaging, (payload) => {
     const title = payload.notification?.title || (payload.data?.title as string) || 'Our Story ❤️';
     const body = payload.notification?.body || (payload.data?.body as string) || 'New message from your partner';
@@ -69,49 +83,12 @@ if (firebaseConfig.apiKey && firebaseConfig.projectId) {
       icon: '/icons/icon-192.png',
       badge: '/icons/icon-192.png',
       vibrate: [200, 100, 200],
-      tag: 'our-story-bg',
+      tag: CHAT_NOTIFICATION_TAG,
       renotify: true,
       data: payload.data || { url: '/chat' },
     } as NotificationOptions & { vibrate?: number[] });
   });
 }
-
-// Fallback push event handler for raw Web Push / background dispatch
-self.addEventListener('push', (event) => {
-  if (!event.data) return;
-  try {
-    const data = event.data.json();
-    const title = data.notification?.title || data.title || 'Our Story ❤️';
-    const body = data.notification?.body || data.body || 'New message from your partner';
-    const url = data.data?.url || data.url || '/chat';
-    event.waitUntil(
-      self.registration.showNotification(title, {
-        body,
-        icon: '/icons/icon-192.png',
-        badge: '/icons/icon-192.png',
-        vibrate: [200, 100, 200],
-        tag: 'our-story-push',
-        renotify: true,
-        data: { url },
-      } as NotificationOptions & { vibrate?: number[] }),
-    );
-  } catch {
-    const text = event.data.text();
-    if (text) {
-      event.waitUntil(
-        self.registration.showNotification('Our Story ❤️', {
-          body: text,
-          icon: '/icons/icon-192.png',
-          badge: '/icons/icon-192.png',
-          vibrate: [200, 100, 200],
-          tag: 'our-story-push',
-          renotify: true,
-          data: { url: '/chat' },
-        } as NotificationOptions & { vibrate?: number[] }),
-      );
-    }
-  }
-});
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
