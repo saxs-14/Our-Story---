@@ -1,8 +1,7 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuthStore, personById, type PersonId } from '@/store/useAuthStore';
-import { useContentStore } from '@/store/useContentStore';
-import { useMediaUrl } from '@/hooks/useMediaUrl';
+import { useProfilePhotoUrl } from '@/hooks/useProfilePhotoUrl';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { Button } from '@/components/ui/Button';
 import { HeartFilledIcon } from '@/components/icons';
@@ -12,8 +11,7 @@ import { haptic } from '@/lib/haptics';
 import { useSound } from '@/hooks/useSound';
 
 function Avatar({ id, size = 80 }: { id: PersonId; size?: number }) {
-  const photoId = useContentStore((s) => s.profiles[id].photoMediaId);
-  const url = useMediaUrl(photoId);
+  const url = useProfilePhotoUrl(id);
   const person = personById(id);
   if (url) {
     return <img src={url} alt={person.name} className="rounded-full object-cover" style={{ width: size, height: size }} />;

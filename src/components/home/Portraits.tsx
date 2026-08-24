@@ -1,24 +1,41 @@
 import { motion } from 'framer-motion';
 import { useContentStore } from '@/store/useContentStore';
 import { personById, type PersonId } from '@/store/useAuthStore';
-import { useMediaUrl } from '@/hooks/useMediaUrl';
-import { MediaUpload } from '@/components/ui/MediaUpload';
+import { useProfilePhotoUrl } from '@/hooks/useProfilePhotoUrl';
+import { saveMedia } from '@/lib/idb';
+import { haptic } from '@/lib/haptics';
 import relationship from '@/config/relationship';
 import { formatLongDate } from '@/lib/time';
 
 function PortraitCard({ id }: { id: PersonId }) {
-  const photoId = useContentStore((s) => s.profiles[id].photoMediaId);
   const setPhoto = useContentStore((s) => s.setProfilePhoto);
-  const url = useMediaUrl(photoId);
+  const uploadMedia = useContentStore((s) => s.uploadMedia);
+  const url = useProfilePhotoUrl(id);
   const person = personById(id);
+  const inputId = `portrait-upload-${id}`;
+
+  const onChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    // Save locally first so the new photo shows instantly on this device
+    // and survives reload even before the cloud upload finishes — the
+    // upload (which is what lets the other partner see it) runs after.
+    const record = await saveMedia(file, file.name);
+    setPhoto(id, record.id, undefined);
+    haptic('soft');
+    void uploadMedia(file, `profiles/${id}/${Date.now()}_${file.name}`).then((cloudUrl) => {
+      if (cloudUrl) setPhoto(id, record.id, cloudUrl);
+    });
+  };
 
   return (
     <div className="flex flex-col items-center">
-      <MediaUpload
-        accept="image/*"
-        label={`Add or change ${person.nickname}'s photo`}
-        onUploaded={(mediaId) => setPhoto(id, mediaId)}
-        className="group relative block"
+      <input type="file" accept="image/*" id={inputId} className="sr-only" onChange={onChange} />
+      <label
+        htmlFor={inputId}
+        aria-label={`Add or change ${person.nickname}'s photo`}
+        className="tap group relative block cursor-pointer"
       >
         <div className="relative h-24 w-24 overflow-hidden rounded-full shadow-glass ring-2 ring-warmwhite/70">
           {url ? (
@@ -35,7 +52,7 @@ function PortraitCard({ id }: { id: PersonId }) {
             {url ? 'change' : 'add photo'}
           </span>
         </div>
-      </MediaUpload>
+      </label>
       <p className="mt-2 font-display text-lg font-semibold text-[color:var(--ink-strong)]">{person.nickname}</p>
       <p className="text-[0.6rem] uppercase tracking-luxe text-[color:var(--ink-soft)]">
         {formatLongDate(person.birthday).replace(/ \d{4}$/, '')}

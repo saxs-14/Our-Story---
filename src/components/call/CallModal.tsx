@@ -2,8 +2,7 @@ import { useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useCallStore } from '@/store/useCallStore';
 import { useAuthStore, personById, partnerOf } from '@/store/useAuthStore';
-import { useContentStore } from '@/store/useContentStore';
-import { useMediaUrl } from '@/hooks/useMediaUrl';
+import { useProfilePhotoUrl } from '@/hooks/useProfilePhotoUrl';
 import { haptic } from '@/lib/haptics';
 import { useSound } from '@/hooks/useSound';
 
@@ -38,8 +37,7 @@ export function CallModal() {
 
   const partnerId = userId ? partnerOf(userId) : 'her';
   const partner = personById(partnerId);
-  const partnerPhotoId = useContentStore((s) => s.profiles[partnerId]?.photoMediaId);
-  const partnerAvatarUrl = useMediaUrl(partnerPhotoId);
+  const partnerAvatarUrl = useProfilePhotoUrl(partnerId);
 
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);

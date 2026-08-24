@@ -9,6 +9,7 @@ import { useCallStore } from '@/store/useCallStore';
 import { usePresenceStore } from '@/store/usePresenceStore';
 import { useContentStore, getUploadPath } from '@/store/useContentStore';
 import { useMediaUrl } from '@/hooks/useMediaUrl';
+import { useProfilePhotoUrl } from '@/hooks/useProfilePhotoUrl';
 import { saveMedia, getMedia } from '@/lib/idb';
 import { CloseIcon, ChevronLeftIcon } from '@/components/icons';
 import { haptic } from '@/lib/haptics';
@@ -785,8 +786,7 @@ export default function Chat() {
 
   const partnerId = userId ? partnerOf(userId) : 'her';
   const partner = personById(partnerId);
-  const partnerPhotoId = useContentStore((s) => s.profiles[partnerId]?.photoMediaId);
-  const partnerAvatarUrl = useMediaUrl(partnerPhotoId);
+  const partnerAvatarUrl = useProfilePhotoUrl(partnerId);
 
   useEffect(() => {
     if (userId) {

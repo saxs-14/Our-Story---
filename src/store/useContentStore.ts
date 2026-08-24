@@ -16,7 +16,10 @@ import {
   syncGalleryItem,
   removeFromFirestore,
   pullCollection,
+  syncProfilePhoto,
+  subscribeProfilePhoto,
 } from '@/lib/firestoreSync';
+import type { Unsubscribe } from 'firebase/firestore';
 import { ref as storageRef, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { storage, FIREBASE_CONFIGURED } from '@/lib/firebase';
 
@@ -75,6 +78,10 @@ interface ContentState {
   gallery: GalleryItem[];
 
   setProfilePhoto: (id: PersonId, mediaId: string | undefined, url?: string) => void;
+  /** Start live-syncing both partners' profile photos so a change either of
+   *  you makes shows up for the other immediately. Call once after login. */
+  startProfileSync: () => void;
+  stopProfileSync: () => void;
 
   addLetter: (l: Omit<UserLetter, 'id' | 'createdAt'>) => void;
   updateLetter: (id: string, patch: Partial<UserLetter>) => void;
@@ -102,6 +109,8 @@ interface ContentState {
 
 const uid = (p: string) => `${p}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 
+let profileUnsubs: Unsubscribe[] = [];
+
 export const useContentStore = create<ContentState>()(
   persist(
     (set, get) => ({
@@ -111,10 +120,29 @@ export const useContentStore = create<ContentState>()(
       memories: [],
       gallery: [],
 
-      setProfilePhoto: (id, mediaId, url) =>
+      setProfilePhoto: (id, mediaId, url) => {
         set((s) => ({
           profiles: { ...s.profiles, [id]: { ...s.profiles[id], photoMediaId: mediaId, photoUrl: url } },
-        })),
+        }));
+        void syncProfilePhoto(id, url ?? null);
+      },
+
+      startProfileSync: () => {
+        get().stopProfileSync();
+        (['her', 'him'] as PersonId[]).forEach((id) => {
+          profileUnsubs.push(
+            subscribeProfilePhoto(id, (photoUrl) => {
+              set((s) => ({
+                profiles: { ...s.profiles, [id]: { ...s.profiles[id], photoUrl: photoUrl ?? undefined } },
+              }));
+            }),
+          );
+        });
+      },
+      stopProfileSync: () => {
+        profileUnsubs.forEach((unsub) => unsub());
+        profileUnsubs = [];
+      },
 
       addLetter: (l) => {
         const letter: UserLetter = { ...l, id: uid('uletter'), createdAt: new Date().toISOString() };

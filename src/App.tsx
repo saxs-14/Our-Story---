@@ -10,6 +10,7 @@ import { setHapticsEnabled } from '@/lib/haptics';
 
 import { useAuthStore, partnerOf } from '@/store/useAuthStore';
 import { usePresenceStore } from '@/store/usePresenceStore';
+import { useContentStore } from '@/store/useContentStore';
 import { AuroraBackground } from '@/components/fx/AuroraBackground';
 import { ParticleField } from '@/components/fx/ParticleField';
 import { BottomNav } from '@/components/layout/BottomNav';
@@ -92,6 +93,7 @@ export default function App() {
   useEffect(() => {
     if (!userId) return;
     usePresenceStore.getState().start(userId, partnerOf(userId));
+    useContentStore.getState().startProfileSync();
 
     // Keep background push token fresh for locked screen / background notifications
     import('@/lib/push').then(({ isPushSupported, currentNotificationPermission, enablePushNotifications }) => {
@@ -102,7 +104,10 @@ export default function App() {
       });
     });
 
-    return () => usePresenceStore.getState().stop();
+    return () => {
+      usePresenceStore.getState().stop();
+      useContentStore.getState().stopProfileSync();
+    };
   }, [userId]);
 
   const finishIntro = () => {

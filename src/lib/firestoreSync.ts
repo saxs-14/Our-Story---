@@ -11,6 +11,8 @@ import {
   collection,
   getDocs,
   getDoc,
+  onSnapshot,
+  type Unsubscribe,
 } from 'firebase/firestore';
 import { db, FIREBASE_CONFIGURED } from '@/lib/firebase';
 import type { UserLetter, UserDream, UserMemory, GalleryItem } from '@/store/useContentStore';
@@ -70,3 +72,20 @@ export const syncDream = (d: UserDream) => syncDoc('dreams', d.id, d);
 export const syncMemory = (m: UserMemory) => syncDoc('memories', m.id, m);
 export const syncGalleryItem = (g: GalleryItem) => syncDoc('gallery', g.id, g);
 export const removeFromFirestore = (col: string, id: string) => removeDoc(col, id);
+
+export const syncProfilePhoto = (personId: string, photoUrl: string | null) =>
+  syncDoc('profiles', personId, { photoUrl });
+
+/**
+ * Live-subscribe to a person's profile photo doc, so a photo either partner
+ * sets shows up for the other immediately — no reload or re-login needed.
+ */
+export function subscribeProfilePhoto(
+  personId: string,
+  onChange: (photoUrl: string | null) => void,
+): Unsubscribe {
+  if (!FIREBASE_CONFIGURED || !db) return () => {};
+  return onSnapshot(doc(db, 'profiles', personId), (snap) => {
+    onChange((snap.data()?.photoUrl as string | undefined) ?? null);
+  });
+}
