@@ -19,6 +19,7 @@ import { haptic } from '@/lib/haptics';
 import { useSound } from '@/hooks/useSound';
 import { useLiveWeather } from '@/hooks/useLiveWeather';
 import { Portraits } from '@/components/home/Portraits';
+import { DailyStatus } from '@/components/home/DailyStatus';
 
 const CrystalHeart = lazy(() => import('@/components/three/CrystalHeart'));
 
@@ -208,6 +209,9 @@ export default function Home({ onReplayIntro }: { onReplayIntro?: () => void }) 
 
       {/* Compliment chip */}
       <p className="mt-4 text-center font-script text-2xl text-rosegold-600">{compliment}</p>
+
+      {/* Daily status → Timeline */}
+      <DailyStatus />
 
       {/* Quick links */}
       <div className="mt-6 grid grid-cols-2 gap-3">
