@@ -6,13 +6,10 @@
  */
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import {
-  signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
-  signOut as fbSignOut,
-} from 'firebase/auth';
+import { signInWithCustomToken, signOut as fbSignOut } from 'firebase/auth';
+import { httpsCallable } from 'firebase/functions';
 import relationship from '@/config/relationship';
-import { auth, FIREBASE_CONFIGURED, firebaseEmail } from '@/lib/firebase';
+import { auth, functions, FIREBASE_CONFIGURED } from '@/lib/firebase';
 
 export type PersonId = 'her' | 'him';
 
@@ -88,57 +85,78 @@ function acceptablePasswords(personId: PersonId): Set<string> {
 const normalize = (s: string) => s.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
 
 /**
- * The real Firebase Auth credential — intentionally NOT derived from the
- * birthday. This repo is public, and relationship.birthday is committed in
- * plaintext, so a password computed from it is a password anyone reading
- * GitHub can compute too. These come from env vars that are never derived
- * from repo contents and never committed (see .env.example).
+ * Signs into the real Firebase account for cloud sync, without any static
+ * password ever shipping in the client bundle. This app deploys to public
+ * URLs (GitHub Pages, Vercel) as well as a private native build — anything
+ * baked into a build-time env var is extractable by anyone who loads a
+ * public deployment and opens dev tools, no matter how random the value is.
+ * There's no way to keep a client-side secret secret on a public web build.
+ *
+ * So instead: the birthday the person just typed (already checked locally
+ * by `verify()` for instant UI feedback) is sent to the signInAsPartner
+ * Cloud Function, which re-checks it server-side — where the real secret
+ * boundary actually lives, Admin SDK credentials that never leave Google's
+ * infrastructure — and if correct, mints a short-lived custom sign-in token.
  */
-function firebasePassword(personId: PersonId): string {
-  return personId === 'her'
-    ? import.meta.env.VITE_FIREBASE_HER_PASSWORD
-    : import.meta.env.VITE_FIREBASE_HIM_PASSWORD;
-}
-
-async function signIntoFirebase(personId: PersonId): Promise<void> {
-  if (!FIREBASE_CONFIGURED || !auth) return;
-  const email = firebaseEmail(personId);
-  const password = firebasePassword(personId);
-  if (!password) return; // Cloud sync env var not set — app still works locally
+async function signIntoFirebase(personId: PersonId, typedAnswer: string): Promise<boolean> {
+  if (!FIREBASE_CONFIGURED || !auth || !functions) return false;
   try {
-    await signInWithEmailAndPassword(auth, email, password);
-  } catch (err: unknown) {
-    const code = (err as { code?: string }).code;
-    if (code === 'auth/user-not-found' || code === 'auth/invalid-credential') {
-      try {
-        await createUserWithEmailAndPassword(auth, email, password);
-      } catch {
-        // Account already exists or creation failed — not critical
-      }
-    }
+    const claim = httpsCallable<{ personId: PersonId; answer: string }, { token: string }>(
+      functions,
+      'signInAsPartner',
+    );
+    const result = await claim({ personId, answer: typedAnswer });
+    await signInWithCustomToken(auth, result.data.token);
+    return true;
+  } catch {
+    // Offline, function unreachable, or (shouldn't happen — verify() already
+    // checked this exact answer) rejected.
+    return false;
   }
 }
 
 interface AuthState {
   userId: PersonId | null;
+  /** Persons who have signed into the real Firebase account on this device
+   *  at least once — lets them keep using their own cached data offline
+   *  afterward, without treating every future offline open as suspect. */
+  verifiedPersons: Partial<Record<PersonId, boolean>>;
   verify: (personId: PersonId, password: string) => boolean;
-  login: (personId: PersonId) => Promise<void>;
+  /** Resolves false if this device has never verified with the server for
+   *  this person AND couldn't reach it right now — login is refused rather
+   *  than silently entering with no cloud data. */
+  login: (personId: PersonId, typedAnswer: string) => Promise<boolean>;
   logout: () => Promise<void>;
 }
 
 export const useAuthStore = create<AuthState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       userId: null,
+      verifiedPersons: {},
 
       verify: (personId, password) => {
         const accepted = new Set([...acceptablePasswords(personId)].map(normalize));
         return accepted.has(normalize(password));
       },
 
-      login: async (userId) => {
+      login: async (userId, typedAnswer) => {
+        const signedIn = FIREBASE_CONFIGURED ? await signIntoFirebase(userId, typedAnswer) : false;
+        const alreadyVerifiedOnThisDevice = Boolean(get().verifiedPersons[userId]);
+
+        // A server exists (FIREBASE_CONFIGURED) but couldn't be reached or
+        // rejected the token this time, and this device has never actually
+        // proven itself to that server before — refuse rather than let
+        // someone in to a permanently-empty, never-syncing session.
+        if (FIREBASE_CONFIGURED && !signedIn && !alreadyVerifiedOnThisDevice) {
+          return false;
+        }
+
+        if (signedIn) {
+          set((s) => ({ verifiedPersons: { ...s.verifiedPersons, [userId]: true } }));
+        }
+
         set({ userId });
-        await signIntoFirebase(userId);
         const [{ useContentStore }, { useProgressStore }, { useAppStore }] = await Promise.all([
           import('@/store/useContentStore'),
           import('@/store/useProgressStore'),
@@ -147,6 +165,7 @@ export const useAuthStore = create<AuthState>()(
         void useContentStore.getState().pullFromFirestore();
         void useProgressStore.getState().pullFromFirestore();
         void useAppStore.getState().pullWallpaperFromFirestore();
+        return true;
       },
 
       logout: async () => {
@@ -159,12 +178,15 @@ export const useAuthStore = create<AuthState>()(
     {
       name: 'our-story:auth',
       storage: createJSONStorage(() => localStorage),
-      version: 3,
+      version: 4,
       // Without this, zustand refuses to load any persisted state whose
       // version doesn't match and silently resets to defaults (userId: null)
-      // — i.e. every version bump would log everyone out. Login state has
-      // no shape that needs transforming between versions, so just pass it through.
-      migrate: (persisted) => persisted as AuthState,
+      // — i.e. every version bump would log everyone out. v4 adds
+      // verifiedPersons; default it in for anyone persisted at an older version.
+      migrate: (persisted) => {
+        const p = persisted as Partial<AuthState> | undefined;
+        return { ...p, verifiedPersons: p?.verifiedPersons ?? {} } as AuthState;
+      },
     },
   ),
 );

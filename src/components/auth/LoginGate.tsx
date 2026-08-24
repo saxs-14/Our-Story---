@@ -35,16 +35,28 @@ export function LoginGate() {
   const [picked, setPicked] = useState<PersonId | null>(null);
   const [pw, setPw] = useState('');
   const [error, setError] = useState(false);
+  const [connectionError, setConnectionError] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
-  const submit = (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!picked) return;
-    if (verify(picked, pw)) {
+    if (!picked || submitting) return;
+    if (!verify(picked, pw)) {
+      setError(true);
+      setConnectionError(false);
+      haptic('soft');
+      return;
+    }
+    setError(false);
+    setConnectionError(false);
+    setSubmitting(true);
+    const ok = await login(picked, pw);
+    setSubmitting(false);
+    if (ok) {
       haptic('success');
       playSound('unlock');
-      void login(picked);
     } else {
-      setError(true);
+      setConnectionError(true);
       haptic('soft');
     }
   };
@@ -97,9 +109,9 @@ export function LoginGate() {
                 type="date"
                 autoFocus
                 value={pw}
-                onChange={(e) => { setPw(e.target.value); setError(false); }}
+                onChange={(e) => { setPw(e.target.value); setError(false); setConnectionError(false); }}
                 aria-label="Enter your secret date"
-                aria-invalid={error}
+                aria-invalid={error || connectionError}
                 min="1970-01-01"
                 max="2099-12-31"
                 className="w-full rounded-2xl bg-warmwhite/70 px-4 py-3 text-center text-base tracking-wider text-[color:var(--ink-strong)] [color-scheme:light] focus:outline-none focus:ring-2 focus:ring-rosegold-300"
@@ -109,12 +121,22 @@ export function LoginGate() {
                   That date doesn't match. Try again ♥
                 </p>
               )}
+              {connectionError && (
+                <p role="alert" className="mt-2 text-xs text-dustyrose-500">
+                  Couldn't reach our world — check your connection and try again ♥
+                </p>
+              )}
               <div className="mt-5 flex flex-wrap gap-2">
-                <Button type="button" variant="ghost" onClick={() => { setPicked(null); setPw(''); setError(false); }}>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  disabled={submitting}
+                  onClick={() => { setPicked(null); setPw(''); setError(false); setConnectionError(false); }}
+                >
                   Back
                 </Button>
-                <Button type="submit" variant="primary" className="min-w-0 flex-1">
-                  Enter Our World ♥
+                <Button type="submit" variant="primary" className="min-w-0 flex-1" disabled={submitting}>
+                  {submitting ? 'Entering…' : 'Enter Our World ♥'}
                 </Button>
               </div>
             </motion.form>

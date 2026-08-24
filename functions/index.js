@@ -7,13 +7,16 @@
  * run at all on the free Spark plan.
  */
 const { onDocumentCreated } = require('firebase-functions/v2/firestore');
+const { onCall, HttpsError } = require('firebase-functions/v2/https');
 const { initializeApp } = require('firebase-admin/app');
 const { getFirestore } = require('firebase-admin/firestore');
 const { getMessaging } = require('firebase-admin/messaging');
+const { getAuth } = require('firebase-admin/auth');
 
 initializeApp();
 const db = getFirestore();
 const messaging = getMessaging();
+const adminAuth = getAuth();
 
 const partnerOf = (id) => (id === 'her' ? 'him' : 'her');
 
@@ -103,4 +106,98 @@ exports.onNewCall = onDocumentCreated('calls/{callId}', async (event) => {
     data: { url: '/' },
     webpush: { fcmOptions: { link: '/' } },
   });
+});
+
+// ── Sign-in — no static password ships to any client bundle ─────────────────
+//
+// The app used to embed a real Firebase Auth password (first the partners'
+// birthday, then a random string) into the built client bundle. That's fine
+// for a build nobody else can fetch (a locally-built native APK), but this
+// project also deploys to public web URLs (GitHub Pages, Vercel) — anything
+// baked into that bundle at build time is extractable by literally anyone
+// who loads the page and opens dev tools, no matter how random the value is.
+// There is no way to keep a build-time client secret secret on a public URL.
+//
+// So the client no longer has any real credential at all. Instead it calls
+// this function with the birthday-style answer the person just typed; this
+// runs server-side (where Admin SDK credentials live, which are never
+// shipped anywhere) and, if correct, mints a short-lived custom token for
+// the matching account via signInWithCustomToken. The birthday itself isn't
+// secret — it's shown throughout the app's own UI on purpose — the point is
+// only that passing this check no longer hands out a reusable static secret.
+const BIRTHDAYS = { her: '2003-08-06', him: '2005-06-14' }; // mirrors src/config/relationship.ts
+const RELATIONSHIP_START = '2026-08-11';
+const FIRST_SIGHT = '2026-08-04';
+const PARTNER_EMAILS = { her: 'lihle@ourstory.app', him: 'phathu@ourstory.app' };
+
+/** Same acceptable date-format list as the client's local UX gate, so typing still feels as forgiving. */
+function dateVariants(iso) {
+  const [y, m, d] = iso.split('-');
+  const dayNum = String(Number(d));
+  const monthNum = String(Number(m));
+  const months = [
+    'january', 'february', 'march', 'april', 'may', 'june',
+    'july', 'august', 'september', 'october', 'november', 'december',
+  ];
+  const monthName = months[Number(m) - 1] ?? '';
+  const monthShort = monthName.slice(0, 3);
+  return [
+    iso, `${d}${m}${y}`, `${y}${m}${d}`, `${d}/${m}/${y}`, `${d}-${m}-${y}`,
+    `${dayNum}/${monthNum}/${y}`, `${dayNum}-${monthNum}-${y}`,
+    `${d} ${monthName} ${y}`, `${dayNum} ${monthName} ${y}`,
+    `${d} ${monthShort} ${y}`, `${dayNum} ${monthShort} ${y}`,
+    `${monthName} ${d} ${y}`, `${monthName} ${dayNum} ${y}`,
+    `${monthShort} ${d} ${y}`, `${monthShort} ${dayNum} ${y}`,
+    `${d} ${monthName}`, `${dayNum} ${monthName}`,
+  ];
+}
+
+function acceptableAnswers(personId) {
+  return new Set([
+    ...dateVariants(BIRTHDAYS[personId]),
+    ...dateVariants(RELATIONSHIP_START),
+    ...dateVariants(FIRST_SIGHT),
+  ]);
+}
+
+const normalizeAnswer = (s) => String(s ?? '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+
+const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000; // 1 hour
+const RATE_LIMIT_MAX_ATTEMPTS = 20;
+
+exports.signInAsPartner = onCall({ region: 'africa-south1' }, async (request) => {
+  const { personId, answer } = request.data || {};
+  if (personId !== 'her' && personId !== 'him') {
+    throw new HttpsError('invalid-argument', 'personId must be "her" or "him".');
+  }
+
+  // Rate limit BEFORE checking the answer, so failed attempts (which is the
+  // scenario this is actually defending against) always count.
+  const attemptRef = db.doc(`authAttempts/${personId}`);
+  const now = Date.now();
+  const attemptData = (await attemptRef.get()).data();
+  const withinWindow = now - (attemptData?.windowStart ?? 0) < RATE_LIMIT_WINDOW_MS;
+  const count = withinWindow ? (attemptData?.count ?? 0) : 0;
+
+  if (withinWindow && count >= RATE_LIMIT_MAX_ATTEMPTS) {
+    throw new HttpsError('resource-exhausted', 'Too many attempts — try again later.');
+  }
+  await attemptRef.set({ count: count + 1, windowStart: withinWindow ? attemptData.windowStart : now });
+
+  const accepted = new Set([...acceptableAnswers(personId)].map(normalizeAnswer));
+  if (!accepted.has(normalizeAnswer(answer))) {
+    throw new HttpsError('permission-denied', 'That answer is not correct.');
+  }
+
+  // Correct — clear the counter so a real login isn't penalized by earlier typos.
+  await attemptRef.delete().catch(() => {});
+
+  const email = PARTNER_EMAILS[personId];
+  const userRecord = await adminAuth.getUserByEmail(email).catch(() => null);
+  if (!userRecord) {
+    throw new HttpsError('not-found', 'Account not found — this needs a one-time admin fix.');
+  }
+
+  const token = await adminAuth.createCustomToken(userRecord.uid);
+  return { token };
 });
