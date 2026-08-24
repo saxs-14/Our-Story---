@@ -58,6 +58,11 @@ export interface ChatMessage {
   isCallEvent?: boolean; // missed/completed call summary — rendered as a centered pill, not a bubble
   local?: boolean; // optimistic echo — not a real Firestore doc yet
   pending?: boolean; // real Firestore doc, but not yet acknowledged by the server (offline/in-flight)
+  /** The real Firestore write failed (not just offline-queued — a genuine
+   *  rejection, e.g. a stale auth session or a rules error). Previously
+   *  these were left indistinguishable from "still sending" forever, with
+   *  no way to know they'd failed or to resend. See retryFailedMessage. */
+  failed?: boolean;
 }
 
 export type PartnerActivity = 'typing' | 'recording' | null;
@@ -67,6 +72,10 @@ interface ChatState {
   unreadCount: number;
   uploading: boolean;
   uploadProgress: number;
+  /** Set when a media send genuinely fails (upload or the message write) —
+   *  cleared at the start of the next attempt. null when there's nothing
+   *  to show. See sendMedia; surfaced in Chat.tsx as a dismissible banner. */
+  mediaError: string | null;
   partnerActivity: PartnerActivity;
 
   /** Subscribe to Firestore messages & typing indicators */
@@ -87,6 +96,10 @@ interface ChatState {
     audioDuration?: number,
     replyTo?: ReplyPreview,
   ) => Promise<void>;
+  /** Re-attempt a message previously marked failed=true — removes the
+   *  failed stub and resends it as a fresh optimistic message. */
+  retryFailedMessage: (id: string) => Promise<void>;
+  clearMediaError: () => void;
   /** Add reaction to a message */
   reactToMessage: (messageId: string, userId: PersonId, emoji: string) => Promise<void>;
   /** Update typing/recording activity status in Firestore */
@@ -135,6 +148,7 @@ export const useChatStore = create<ChatState>()(
       unreadCount: 0,
       uploading: false,
       uploadProgress: 0,
+      mediaError: null,
       partnerActivity: null,
 
       subscribe: (currentUserId) => {
@@ -234,78 +248,112 @@ export const useChatStore = create<ChatState>()(
             });
             set((s) => ({ messages: s.messages.filter((m) => m.id !== tmpId) }));
           } catch {
-            // Keep optimistic message marked as local for offline retry
+            // A genuinely offline write resolves fine from Firestore's own
+            // IndexedDB cache (tracked via the pending/hasPendingWrites flag
+            // in the subscribe() listener above) and never reaches this
+            // catch at all — this only fires for a real, fast rejection
+            // (stale auth session, a rules error, quota). Previously this
+            // left the optimistic message indistinguishable from "still
+            // sending" forever, with no way to know it failed or to resend
+            // it — mark it failed instead so the UI can show that and offer
+            // a retry (see retryFailedMessage below).
+            set((s) => ({
+              messages: s.messages.map((m) => (m.id === tmpId ? { ...m, local: false, failed: true } : m)),
+            }));
           }
         }
       },
 
+      retryFailedMessage: async (id) => {
+        const msg = get().messages.find((m) => m.id === id);
+        if (!msg || !msg.failed) return;
+        set((s) => ({ messages: s.messages.filter((m) => m.id !== id) }));
+        await get().sendMessage(msg.text, msg.senderId, msg.senderName, msg.replyTo);
+      },
+
+      clearMediaError: () => set({ mediaError: null }),
+
       sendMedia: async (file, senderId, senderName, caption = '', audioDuration, replyTo) => {
         if (!FIREBASE_CONFIGURED || !storage || !db) return;
 
-        set({ uploading: true, uploadProgress: 0 });
-        // Derived from the file's real mimetype subtype rather than hardcoded
-        // 'webm' — voice notes recorded on Safari are actually audio/mp4 (see
-        // Chat.tsx's startRecording), and this extension previously lied
-        // about that regardless of what was actually recorded.
-        const ext = file.type.includes('audio')
-          ? file.type.split('/')[1]?.split(';')[0] || 'webm'
-          : file.type.includes('video')
-          ? 'mp4'
-          : 'jpg';
-        const filename = (file as File).name || `voice-note-${Date.now()}.${ext}`;
-        const path = `chat/${senderId}/${Date.now()}_${filename}`;
-        const sRef = ref(storage, path);
-        const mediaType: 'image' | 'video' | 'audio' = file.type.startsWith('image/')
-          ? 'image'
-          : file.type.startsWith('video/')
-          ? 'video'
-          : 'audio';
+        set({ uploading: true, uploadProgress: 0, mediaError: null });
+        try {
+          // Derived from the file's real mimetype subtype rather than hardcoded
+          // 'webm' — voice notes recorded on Safari are actually audio/mp4 (see
+          // Chat.tsx's startRecording), and this extension previously lied
+          // about that regardless of what was actually recorded.
+          const ext = file.type.includes('audio')
+            ? file.type.split('/')[1]?.split(';')[0] || 'webm'
+            : file.type.includes('video')
+            ? 'mp4'
+            : 'jpg';
+          const filename = (file as File).name || `voice-note-${Date.now()}.${ext}`;
+          const path = `chat/${senderId}/${Date.now()}_${filename}`;
+          const sRef = ref(storage, path);
+          const mediaType: 'image' | 'video' | 'audio' = file.type.startsWith('image/')
+            ? 'image'
+            : file.type.startsWith('video/')
+            ? 'video'
+            : 'audio';
 
-        // Voice notes only: pre-generate this message's Firestore doc id and
-        // tag the Storage upload with it, so the server-side transcoding
-        // function (onVoiceNoteUploaded in functions/index.js) can find and
-        // patch this exact message with a Safari-playable version once
-        // ready — Safari can't decode the WebM/Opus format other browsers
-        // record voice notes in, no matter how it's labeled.
-        const messageRef = mediaType === 'audio' ? doc(collection(db, MESSAGES_COLLECTION)) : null;
-        const task: UploadTask = uploadBytesResumable(
-          sRef,
-          file,
-          messageRef ? { customMetadata: { messageId: messageRef.id } } : undefined,
-        );
-
-        await new Promise<void>((resolve, reject) => {
-          task.on(
-            'state_changed',
-            (snap) => {
-              const pct = Math.round((snap.bytesTransferred / snap.totalBytes) * 100);
-              set({ uploadProgress: pct });
-            },
-            reject,
-            resolve,
+          // Voice notes only: pre-generate this message's Firestore doc id and
+          // tag the Storage upload with it, so the server-side transcoding
+          // function (onVoiceNoteUploaded in functions/index.js) can find and
+          // patch this exact message with a Safari-playable version once
+          // ready — Safari can't decode the WebM/Opus format other browsers
+          // record voice notes in, no matter how it's labeled.
+          const messageRef = mediaType === 'audio' ? doc(collection(db, MESSAGES_COLLECTION)) : null;
+          const task: UploadTask = uploadBytesResumable(
+            sRef,
+            file,
+            messageRef ? { customMetadata: { messageId: messageRef.id } } : undefined,
           );
-        });
 
-        const mediaUrl = await getDownloadURL(sRef);
+          await new Promise<void>((resolve, reject) => {
+            task.on(
+              'state_changed',
+              (snap) => {
+                const pct = Math.round((snap.bytesTransferred / snap.totalBytes) * 100);
+                set({ uploadProgress: pct });
+              },
+              reject,
+              resolve,
+            );
+          });
 
-        const payload = {
-          text: caption,
-          senderId,
-          senderName,
-          mediaUrl,
-          mediaType,
-          audioDuration: audioDuration || null,
-          read: false,
-          replyTo: replyTo ?? null,
-          timestamp: serverTimestamp(),
-        };
-        if (messageRef) {
-          await setDoc(messageRef, payload);
-        } else {
-          await addDoc(collection(db, MESSAGES_COLLECTION), payload);
+          const mediaUrl = await getDownloadURL(sRef);
+
+          const payload = {
+            text: caption,
+            senderId,
+            senderName,
+            mediaUrl,
+            mediaType,
+            audioDuration: audioDuration || null,
+            read: false,
+            replyTo: replyTo ?? null,
+            timestamp: serverTimestamp(),
+          };
+          if (messageRef) {
+            // merge: true — onVoiceNoteUploaded (functions/index.js) can
+            // race ahead of this write on a slow connection and create this
+            // same doc first with just { audioUrlAac }. A plain setDoc would
+            // blow that away; merge keeps whichever side writes second from
+            // erasing the other's field.
+            await setDoc(messageRef, payload, { merge: true });
+          } else {
+            await addDoc(collection(db, MESSAGES_COLLECTION), payload);
+          }
+
+          set({ uploading: false, uploadProgress: 0 });
+        } catch (err) {
+          console.error('sendMedia failed', err);
+          set({
+            uploading: false,
+            uploadProgress: 0,
+            mediaError: "Couldn't send — check your connection and try again.",
+          });
         }
-
-        set({ uploading: false, uploadProgress: 0 });
       },
 
       reactToMessage: async (messageId, userId, emoji) => {

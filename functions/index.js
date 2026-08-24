@@ -59,6 +59,13 @@ async function sendPush(token, personId, payload) {
   } catch (err) {
     if (err?.code === 'messaging/registration-token-not-registered') {
       await forgetStaleToken(personId);
+    } else {
+      // Previously silently discarded — this is the one function every
+      // push notification in the app (new messages, calls, location
+      // alerts) routes through, so any other failure (quota, a bad
+      // payload, an auth/credential issue) needs to leave a trace, or
+      // "notifications stopped working" becomes undiagnosable.
+      console.error('sendPush failed', personId, err?.code || err);
     }
   }
 }
@@ -208,6 +215,9 @@ exports.onLocationUpdate = onDocumentWritten('locations/{personId}', async (even
 // (customMetadata.messageId) specifically so this function can find the
 // right doc to patch — Storage events don't carry any Firestore context
 // on their own.
+const MAX_VOICE_NOTE_BYTES = 25 * 1024 * 1024; // generous for even a long voice note; rules out a pathological/oversized "audio" upload
+const FFMPEG_TIMEOUT_MS = 60_000; // well under the function's own 120s hard timeout, which SIGKILLs the whole instance (skipping the finally cleanup below) if ever reached
+
 exports.onVoiceNoteUploaded = onObjectFinalized(
   { region: 'africa-south1', memory: '512MiB', timeoutSeconds: 120 },
   async (event) => {
@@ -224,6 +234,10 @@ exports.onVoiceNoteUploaded = onObjectFinalized(
       // itself) — nothing to transcode.
       return;
     }
+    if (Number(object.size) > MAX_VOICE_NOTE_BYTES) {
+      console.error('Voice note transcode skipped: file too large', { messageId, filePath, size: object.size });
+      return;
+    }
 
     const bucket = adminStorage.bucket(object.bucket);
     const tmpDir = os.tmpdir();
@@ -233,7 +247,11 @@ exports.onVoiceNoteUploaded = onObjectFinalized(
     try {
       await bucket.file(filePath).download({ destination: inputPath });
 
-      await execFileAsync(ffmpegPath, ['-y', '-i', inputPath, '-c:a', 'aac', '-b:a', '96k', outputPath]);
+      await execFileAsync(
+        ffmpegPath,
+        ['-y', '-i', inputPath, '-c:a', 'aac', '-b:a', '96k', outputPath],
+        { timeout: FFMPEG_TIMEOUT_MS },
+      );
 
       const outputStoragePath = `chat-transcoded/${messageId}.m4a`;
       const downloadToken = randomUUID();
@@ -250,12 +268,26 @@ exports.onVoiceNoteUploaded = onObjectFinalized(
         outputStoragePath,
       )}?alt=media&token=${downloadToken}`;
 
-      await db.doc(`messages/${messageId}`).update({ audioUrlAac }).catch(() => {});
+      // set(..., {merge:true}) rather than update() — this can race ahead of
+      // the client's own Firestore write for the same message (the client
+      // uploads to Storage, THEN calls getDownloadURL, THEN writes the
+      // message doc — three sequential round trips after the point this
+      // function's trigger fires). update() throws NOT_FOUND if the doc
+      // doesn't exist yet, and that used to be caught and silently
+      // discarded, permanently losing this message's Safari fallback with
+      // zero trace. merge:true works regardless of which side gets there
+      // first: if this runs first, it creates a partial doc that the
+      // client's later write (also merge:true, see useChatStore.ts) merges
+      // into rather than overwriting; if the client wins the race as usual,
+      // this just merges the field into the existing doc as before.
+      await db.doc(`messages/${messageId}`).set({ audioUrlAac }, { merge: true });
     } catch (err) {
       // Transcoding is an enhancement, not a requirement — the original
       // mediaUrl already works for every browser except Safari, so a
       // failure here should never surface as a broken message to send.
-      console.error('Voice note transcode failed', filePath, err);
+      // messageId included (not just filePath) since that's the actual key
+      // needed to go find and diagnose the affected message afterward.
+      console.error('Voice note transcode failed', { messageId, filePath }, err);
     } finally {
       await fs.rm(inputPath, { force: true }).catch(() => {});
       await fs.rm(outputPath, { force: true }).catch(() => {});

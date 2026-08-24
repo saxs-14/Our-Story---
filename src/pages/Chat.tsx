@@ -588,10 +588,41 @@ function SendingRing() {
   );
 }
 
-function MessageTicks({ read, partnerOnline, pending }: { read: boolean; partnerOnline: boolean; pending?: boolean }) {
+function MessageTicks({
+  read,
+  partnerOnline,
+  pending,
+  failed,
+  onRetry,
+}: {
+  read: boolean;
+  partnerOnline: boolean;
+  pending?: boolean;
+  failed?: boolean;
+  onRetry?: () => void;
+}) {
   return (
     <AnimatePresence mode="wait" initial={false}>
-      {pending ? (
+      {failed ? (
+        <motion.button
+          key="failed"
+          type="button"
+          onClick={() => {
+            haptic('tap');
+            onRetry?.();
+          }}
+          initial={{ opacity: 0, scale: 0.6 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.6 }}
+          transition={{ duration: 0.18 }}
+          className="tap flex items-center gap-0.5 font-bold text-rosegold-300"
+          aria-label="Failed to send — tap to retry"
+          title="Failed to send — tap to retry"
+        >
+          <span>!</span>
+          <span className="text-[0.58rem] underline">Retry</span>
+        </motion.button>
+      ) : pending ? (
         <motion.span
           key="sending"
           initial={{ opacity: 0, scale: 0.6 }}
@@ -636,6 +667,7 @@ function MessageBubble({
   onReply,
   onBackground,
   onViewMedia,
+  onRetry,
 }: {
   m: ChatMessage;
   isMe: boolean;
@@ -646,6 +678,7 @@ function MessageBubble({
   onReply: (m: ChatMessage) => void;
   onBackground: () => void;
   onViewMedia: (url: string, type: 'image' | 'video') => void;
+  onRetry: (id: string) => void;
 }) {
   const pressRef = useRef<{ x: number; y: number; timer: number; fired: boolean } | null>(null);
   const MOVE_TOLERANCE = 10;
@@ -773,7 +806,15 @@ function MessageBubble({
 
         <div className="mt-1 flex items-center justify-end gap-1 text-[0.62rem] text-white/60">
           <span>{formatTime(m.timestamp)}</span>
-          {isMe && <MessageTicks read={m.read} partnerOnline={partnerOnline} pending={m.local || m.pending} />}
+          {isMe && (
+            <MessageTicks
+              read={m.read}
+              partnerOnline={partnerOnline}
+              pending={m.local || m.pending}
+              failed={m.failed}
+              onRetry={() => onRetry(m.id)}
+            />
+          )}
         </div>
 
         {m.reactions && Object.keys(m.reactions).length > 0 && (
@@ -796,11 +837,14 @@ export default function Chat() {
     partnerActivity,
     sendMessage,
     sendMedia,
+    retryFailedMessage,
     reactToMessage,
     setActivity,
     markRead,
     uploading,
     uploadProgress,
+    mediaError,
+    clearMediaError,
   } = useChatStore();
 
   const chatWallpaper = useAppStore((s) => s.chatWallpaper);
@@ -1156,6 +1200,7 @@ export default function Chat() {
                       inputRef.current?.focus();
                     }}
                     onBackground={() => setShowWallpaperModal(true)}
+                    onRetry={(id) => void retryFailedMessage(id)}
                     onViewMedia={(url, type) => setViewerMedia({ url, type })}
                   />
                 </div>
@@ -1175,6 +1220,34 @@ export default function Chat() {
             />
           </div>
         )}
+
+        {/* ── MEDIA SEND ERROR ──────────────────────────────────────── */}
+        {/* Previously a failed photo/video/voice-note upload left the
+            progress bar stuck and just silently vanished — this is the
+            visible replacement for that silent failure. */}
+        <AnimatePresence>
+          {mediaError && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              className="flex items-center justify-between gap-2 bg-rosegold-900/90 px-4 py-2 text-xs text-warmwhite"
+            >
+              <span>{mediaError}</span>
+              <button
+                type="button"
+                onClick={() => {
+                  haptic('tap');
+                  clearMediaError();
+                }}
+                className="tap shrink-0 font-bold uppercase tracking-luxe text-rosegold-200"
+                aria-label="Dismiss"
+              >
+                Dismiss
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* ── BOTTOM DOCK: WHATSAPP INPUT & VOICE RECORDER ─────────── */}
         <div className="relative z-30 shrink-0 bg-[#202c33] px-3 py-2 pb-[calc(env(safe-area-inset-bottom)+0.5rem)]">
