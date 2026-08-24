@@ -60,10 +60,14 @@ function formatAudioDuration(sec: number) {
 /** In-bubble Audio Voice Note Player */
 function VoiceNoteBubble({
   audioUrl,
+  audioUrlAac,
   duration,
   isMe,
 }: {
   audioUrl: string;
+  /** Server-transcoded AAC fallback, filled in a few seconds after send —
+   *  see ChatMessage.audioUrlAac and onVoiceNoteUploaded in functions/index.js. */
+  audioUrlAac?: string;
   duration?: number;
   isMe: boolean;
 }) {
@@ -73,6 +77,40 @@ function VoiceNoteBubble({
   const [currentTime, setCurrentTime] = useState(0);
   const [speed, setSpeed] = useState<1 | 1.5 | 2>(1);
   const [playError, setPlayError] = useState(false);
+  // Which source is actually loaded — starts at the original recording,
+  // swaps to the transcoded AAC fallback exactly once if that fails to
+  // play (the common case: Safari can't decode the WebM/Opus another
+  // browser recorded, no matter how it's labeled).
+  const [src, setSrc] = useState(audioUrl);
+  const triedFallbackRef = useRef(false);
+  const isFirstSrcRender = useRef(true);
+
+  const handlePlaybackFailure = () => {
+    if (!triedFallbackRef.current && audioUrlAac && audioUrlAac !== src) {
+      triedFallbackRef.current = true;
+      setIsPlaying(false);
+      setSrc(audioUrlAac);
+    } else {
+      setIsPlaying(false);
+      setPlayError(true);
+    }
+  };
+
+  // Once the fallback source swaps in, automatically resume the play
+  // attempt the user already made — they shouldn't have to tap twice.
+  useEffect(() => {
+    if (isFirstSrcRender.current) {
+      isFirstSrcRender.current = false;
+      return;
+    }
+    if (!audioRef.current) return;
+    audioRef.current.playbackRate = speed;
+    audioRef.current
+      .play()
+      .then(() => setIsPlaying(true))
+      .catch(() => setPlayError(true));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [src]);
 
   const togglePlay = () => {
     if (!audioRef.current) return;
@@ -91,7 +129,7 @@ function VoiceNoteBubble({
       audioRef.current
         .play()
         .then(() => setIsPlaying(true))
-        .catch(() => setPlayError(true));
+        .catch(handlePlaybackFailure);
     }
   };
 
@@ -122,16 +160,14 @@ function VoiceNoteBubble({
     <div className="flex w-full min-w-[210px] max-w-[270px] items-center gap-2.5 py-1">
       <audio
         ref={audioRef}
-        src={audioUrl}
+        src={src}
         onTimeUpdate={onTimeUpdate}
         onEnded={onEnded}
-        onError={() => {
-          // Some decode failures surface here (an element-level error event)
-          // rather than as a rejected play() promise, depending on browser
-          // and timing — covering both is what actually catches every case.
-          setIsPlaying(false);
-          setPlayError(true);
-        }}
+        // Some decode failures surface here (an element-level error event)
+        // rather than as a rejected play() promise, depending on browser and
+        // timing — routing both through the same handler is what actually
+        // catches every case and triggers the AAC fallback consistently.
+        onError={handlePlaybackFailure}
         preload="metadata"
       />
 
@@ -725,7 +761,12 @@ function MessageBubble({
         )}
 
         {m.mediaUrl && m.mediaType === 'audio' ? (
-          <VoiceNoteBubble audioUrl={m.mediaUrl} duration={m.audioDuration} isMe={isMe} />
+          <VoiceNoteBubble
+            audioUrl={m.mediaUrl}
+            audioUrlAac={m.audioUrlAac}
+            duration={m.audioDuration}
+            isMe={isMe}
+          />
         ) : (
           <p className="leading-relaxed whitespace-pre-wrap">{m.text}</p>
         )}

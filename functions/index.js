@@ -7,16 +7,28 @@
  * run at all on the free Spark plan.
  */
 const { onDocumentCreated, onDocumentWritten } = require('firebase-functions/v2/firestore');
+const { onObjectFinalized } = require('firebase-functions/v2/storage');
 const { onCall, HttpsError } = require('firebase-functions/v2/https');
 const { initializeApp } = require('firebase-admin/app');
 const { getFirestore, FieldValue } = require('firebase-admin/firestore');
 const { getMessaging } = require('firebase-admin/messaging');
 const { getAuth } = require('firebase-admin/auth');
+const { getStorage } = require('firebase-admin/storage');
+const { execFile } = require('node:child_process');
+const { promisify } = require('node:util');
+const { randomUUID } = require('node:crypto');
+const os = require('node:os');
+const path = require('node:path');
+const fs = require('node:fs/promises');
+const ffmpegPath = require('ffmpeg-static');
+
+const execFileAsync = promisify(execFile);
 
 initializeApp();
 const db = getFirestore();
 const messaging = getMessaging();
 const adminAuth = getAuth();
+const adminStorage = getStorage();
 
 const partnerOf = (id) => (id === 'her' ? 'him' : 'her');
 
@@ -178,6 +190,78 @@ exports.onLocationUpdate = onDocumentWritten('locations/{personId}', async (even
     webpush: { fcmOptions: { link: '/location' } },
   });
 });
+
+// ── Voice note transcoding (Safari WebM/Opus playback fix) ──────────────────
+//
+// Safari has no WebM/Opus decoder at all — it cannot play a voice note
+// recorded on Chrome/Firefox/Android no matter how the file is labeled.
+// This transcodes every voice note to AAC (which every major engine can
+// play, including Safari) right after upload, and patches the resulting
+// URL onto the message doc as `audioUrlAac`. The client
+// (VoiceNoteBubble in src/pages/Chat.tsx) tries the original recording
+// first and falls back to this field only if playback actually fails, so
+// this never blocks or slows down sending — it's a few-seconds-later
+// enhancement, not something the send flow waits on.
+//
+// Client coordination: useChatStore.ts's sendMedia() pre-generates the
+// message's Firestore doc id and tags the Storage upload with it
+// (customMetadata.messageId) specifically so this function can find the
+// right doc to patch — Storage events don't carry any Firestore context
+// on their own.
+exports.onVoiceNoteUploaded = onObjectFinalized(
+  { region: 'africa-south1', memory: '512MiB', timeoutSeconds: 120 },
+  async (event) => {
+    const object = event.data;
+    const filePath = object.name;
+    const contentType = object.contentType || '';
+    const messageId = object.metadata?.messageId;
+
+    if (!filePath || !filePath.startsWith('chat/')) return;
+    if (!contentType.startsWith('audio/')) return;
+    if (!messageId) return; // not a voice note this function tagged for transcoding
+    if (contentType.startsWith('audio/mp4') || contentType.startsWith('audio/aac')) {
+      // Already a format every engine can play (e.g. recorded on Safari
+      // itself) — nothing to transcode.
+      return;
+    }
+
+    const bucket = adminStorage.bucket(object.bucket);
+    const tmpDir = os.tmpdir();
+    const inputPath = path.join(tmpDir, `in-${messageId}`);
+    const outputPath = path.join(tmpDir, `out-${messageId}.m4a`);
+
+    try {
+      await bucket.file(filePath).download({ destination: inputPath });
+
+      await execFileAsync(ffmpegPath, ['-y', '-i', inputPath, '-c:a', 'aac', '-b:a', '96k', outputPath]);
+
+      const outputStoragePath = `chat-transcoded/${messageId}.m4a`;
+      const downloadToken = randomUUID();
+      await bucket.upload(outputPath, {
+        destination: outputStoragePath,
+        metadata: {
+          contentType: 'audio/mp4',
+          metadata: { firebaseStorageDownloadTokens: downloadToken },
+        },
+      });
+      // Same URL shape the client SDK's getDownloadURL() produces, so this
+      // is consistent with every other media URL already stored in this app.
+      const audioUrlAac = `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodeURIComponent(
+        outputStoragePath,
+      )}?alt=media&token=${downloadToken}`;
+
+      await db.doc(`messages/${messageId}`).update({ audioUrlAac }).catch(() => {});
+    } catch (err) {
+      // Transcoding is an enhancement, not a requirement — the original
+      // mediaUrl already works for every browser except Safari, so a
+      // failure here should never surface as a broken message to send.
+      console.error('Voice note transcode failed', filePath, err);
+    } finally {
+      await fs.rm(inputPath, { force: true }).catch(() => {});
+      await fs.rm(outputPath, { force: true }).catch(() => {});
+    }
+  },
+);
 
 // ── Sign-in — no static password ships to any client bundle ─────────────────
 //

@@ -46,6 +46,12 @@ export interface ChatMessage {
   mediaUrl?: string;
   mediaType?: 'image' | 'video' | 'audio';
   audioDuration?: number; // seconds for voice notes
+  /** Server-transcoded AAC fallback for voice notes recorded in a format the
+   *  original mediaUrl's browser can't play (e.g. Safari can't decode the
+   *  WebM/Opus another browser recorded) — filled in a few seconds after
+   *  send by onVoiceNoteUploaded in functions/index.js, not present at
+   *  first. See VoiceNoteBubble's onError fallback. */
+  audioUrlAac?: string;
   reactions?: Record<string, string>; // e.g. { 'her': '❤️', 'him': '🔥' }
   read: boolean;
   replyTo?: ReplyPreview;
@@ -164,6 +170,7 @@ export const useChatStore = create<ChatState>()(
               mediaUrl: data.mediaUrl,
               mediaType: data.mediaType,
               audioDuration: data.audioDuration,
+              audioUrlAac: data.audioUrlAac ?? undefined,
               reactions: data.reactions ?? {},
               read: data.read ?? false,
               replyTo: data.replyTo ?? undefined,
@@ -248,7 +255,24 @@ export const useChatStore = create<ChatState>()(
         const filename = (file as File).name || `voice-note-${Date.now()}.${ext}`;
         const path = `chat/${senderId}/${Date.now()}_${filename}`;
         const sRef = ref(storage, path);
-        const task: UploadTask = uploadBytesResumable(sRef, file);
+        const mediaType: 'image' | 'video' | 'audio' = file.type.startsWith('image/')
+          ? 'image'
+          : file.type.startsWith('video/')
+          ? 'video'
+          : 'audio';
+
+        // Voice notes only: pre-generate this message's Firestore doc id and
+        // tag the Storage upload with it, so the server-side transcoding
+        // function (onVoiceNoteUploaded in functions/index.js) can find and
+        // patch this exact message with a Safari-playable version once
+        // ready — Safari can't decode the WebM/Opus format other browsers
+        // record voice notes in, no matter how it's labeled.
+        const messageRef = mediaType === 'audio' ? doc(collection(db, MESSAGES_COLLECTION)) : null;
+        const task: UploadTask = uploadBytesResumable(
+          sRef,
+          file,
+          messageRef ? { customMetadata: { messageId: messageRef.id } } : undefined,
+        );
 
         await new Promise<void>((resolve, reject) => {
           task.on(
@@ -263,13 +287,8 @@ export const useChatStore = create<ChatState>()(
         });
 
         const mediaUrl = await getDownloadURL(sRef);
-        const mediaType: 'image' | 'video' | 'audio' = file.type.startsWith('image/')
-          ? 'image'
-          : file.type.startsWith('video/')
-          ? 'video'
-          : 'audio';
 
-        await addDoc(collection(db, MESSAGES_COLLECTION), {
+        const payload = {
           text: caption,
           senderId,
           senderName,
@@ -279,7 +298,12 @@ export const useChatStore = create<ChatState>()(
           read: false,
           replyTo: replyTo ?? null,
           timestamp: serverTimestamp(),
-        });
+        };
+        if (messageRef) {
+          await setDoc(messageRef, payload);
+        } else {
+          await addDoc(collection(db, MESSAGES_COLLECTION), payload);
+        }
 
         set({ uploading: false, uploadProgress: 0 });
       },
