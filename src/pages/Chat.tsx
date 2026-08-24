@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence, useMotionValue, useTransform, animate } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { PageShell } from '@/components/layout/PageShell';
 import { useChatStore, type ChatMessage, type ReplyPreview } from '@/store/useChatStore';
 import { useAuthStore, personById, partnerOf } from '@/store/useAuthStore';
@@ -356,34 +356,64 @@ function WallpaperModal({ onClose }: { onClose: () => void }) {
   );
 }
 
-function ReactionPicker({
-  onSelect,
+function MessageActionMenu({
+  onReact,
+  onReply,
+  onBackground,
   onClose,
 }: {
-  onSelect: (emoji: string) => void;
+  onReact: (emoji: string) => void;
+  onReply: () => void;
+  onBackground: () => void;
   onClose: () => void;
 }) {
   return (
     <motion.div
-      className="glass-strong absolute -top-12 left-2 z-30 flex items-center gap-1.5 rounded-full border border-rosegold-400/40 px-3 py-1.5 shadow-2xl backdrop-blur-xl"
+      className="glass-strong absolute -top-24 left-2 z-30 flex flex-col gap-1.5 rounded-2xl border border-rosegold-400/40 p-2 shadow-2xl backdrop-blur-xl"
       initial={{ scale: 0.8, opacity: 0, y: 10 }}
       animate={{ scale: 1, opacity: 1, y: 0 }}
       exit={{ scale: 0.8, opacity: 0 }}
     >
-      {QUICK_EMOJIS.map((emoji) => (
+      <div className="flex items-center gap-1.5 px-1">
+        {QUICK_EMOJIS.map((emoji) => (
+          <button
+            key={emoji}
+            type="button"
+            onClick={() => {
+              haptic('tap');
+              onReact(emoji);
+              onClose();
+            }}
+            className="tap text-lg transition-transform hover:scale-125"
+          >
+            {emoji}
+          </button>
+        ))}
+      </div>
+      <div className="flex items-center gap-1 border-t border-white/10 pt-1.5">
         <button
-          key={emoji}
           type="button"
           onClick={() => {
             haptic('tap');
-            onSelect(emoji);
+            onReply();
             onClose();
           }}
-          className="tap text-lg transition-transform hover:scale-125"
+          className="tap flex flex-1 items-center justify-center gap-1.5 rounded-xl px-2 py-1.5 text-xs font-medium text-warmwhite hover:bg-white/10"
         >
-          {emoji}
+          <span aria-hidden="true">↩️</span> Reply
         </button>
-      ))}
+        <button
+          type="button"
+          onClick={() => {
+            haptic('tap');
+            onBackground();
+            onClose();
+          }}
+          className="tap flex flex-1 items-center justify-center gap-1.5 rounded-xl px-2 py-1.5 text-xs font-medium text-warmwhite hover:bg-white/10"
+        >
+          <span aria-hidden="true">🖼️</span> Background
+        </button>
+      </div>
     </motion.div>
   );
 }
@@ -512,13 +542,13 @@ function MessageTicks({ read, partnerOnline, pending }: { read: boolean; partner
   );
 }
 
-const REPLY_SWIPE_THRESHOLD = 64;
-
 /**
- * WhatsApp-style swipe-to-reply: swipe a partner's message right, or your
- * own message left, past the threshold to set it as the reply target.
- * Split into its own component (rather than inline in the list) so each
- * bubble gets its own drag motion value — hooks can't live inside .map().
+ * Long-press a message to open the action menu (React / Reply / Background).
+ * Previously this also handled swipe-to-reply on the same pointer handlers,
+ * racing a hold-timer against a movement threshold to tell the two gestures
+ * apart — on real touchscreens that race frequently resolved to neither,
+ * which is why reply felt unreliable. Long-press-only removes the race
+ * entirely instead of tuning its thresholds.
  */
 function MessageBubble({
   m,
@@ -527,7 +557,8 @@ function MessageBubble({
   isSelected,
   onSelect,
   onReact,
-  onSwipeReply,
+  onReply,
+  onBackground,
   onViewMedia,
 }: {
   m: ChatMessage;
@@ -536,64 +567,35 @@ function MessageBubble({
   isSelected: boolean;
   onSelect: (id: string | null) => void;
   onReact: (emoji: string) => void;
-  onSwipeReply: (m: ChatMessage) => void;
+  onReply: (m: ChatMessage) => void;
+  onBackground: () => void;
   onViewMedia: (url: string, type: 'image' | 'video') => void;
 }) {
-  const x = useMotionValue(0);
-  const replyIconOpacity = useTransform(
-    x,
-    isMe ? [-REPLY_SWIPE_THRESHOLD, 0] : [0, REPLY_SWIPE_THRESHOLD],
-    [1, 0],
-  );
-  // Manual pointer-driven drag rather than framer-motion's `drag` prop —
-  // verified live that `drag`/`onDragEnd` silently never fired on this
-  // element (tested with both a trusted CDP mouse-drag and a dispatched
-  // PointerEvent sequence; the element's transform never moved from
-  // "none" and none of onDrag/onDragEnd's callbacks ran). This reuses the
-  // same pointer tracking as the long-press-to-react gesture below, which
-  // is known to work, so the whole interaction is one verifiable code path.
-  const draggingRef = useRef(false);
-  const swipeMax = isMe ? -80 : 80;
-  const pressRef = useRef<{ x: number; y: number; timer: number } | null>(null);
+  const pressRef = useRef<{ x: number; y: number; timer: number; fired: boolean } | null>(null);
+  const MOVE_TOLERANCE = 10;
 
   const startPress = (px: number, py: number) => {
-    draggingRef.current = false;
     pressRef.current = {
       x: px,
       y: py,
+      fired: false,
       timer: window.setTimeout(() => {
         haptic('soft');
         onSelect(m.id);
-        pressRef.current = null;
+        if (pressRef.current) pressRef.current.fired = true;
       }, 420),
     };
   };
   const movePress = (px: number, py: number) => {
-    if (!pressRef.current) return;
+    if (!pressRef.current || pressRef.current.fired) return;
     const dx = px - pressRef.current.x;
     const dy = py - pressRef.current.y;
-    if (!draggingRef.current && Math.hypot(dx, dy) > 10) {
+    if (Math.hypot(dx, dy) > MOVE_TOLERANCE) {
       clearTimeout(pressRef.current.timer);
-      // Only treat it as the reply-swipe once the gesture is clearly more
-      // horizontal than vertical, so it doesn't fight the message list's
-      // own vertical scrolling.
-      if (Math.abs(dx) > Math.abs(dy) * 1.5) draggingRef.current = true;
-      else pressRef.current = null;
-    }
-    if (draggingRef.current) {
-      const clamped = swipeMax < 0 ? Math.max(swipeMax, Math.min(0, dx)) : Math.min(swipeMax, Math.max(0, dx));
-      x.set(clamped);
+      pressRef.current = null;
     }
   };
   const endPress = () => {
-    if (draggingRef.current) {
-      if (Math.abs(x.get()) >= REPLY_SWIPE_THRESHOLD) {
-        haptic('soft');
-        onSwipeReply(m);
-      }
-      animate(x, 0, { type: 'spring', stiffness: 500, damping: 32 });
-    }
-    draggingRef.current = false;
     if (pressRef.current) {
       clearTimeout(pressRef.current.timer);
       pressRef.current = null;
@@ -602,18 +604,7 @@ function MessageBubble({
 
   return (
     <div className="relative">
-      <motion.span
-        style={{ opacity: replyIconOpacity }}
-        className={cn(
-          'pointer-events-none absolute top-1/2 -translate-y-1/2 text-lg text-rosegold-300',
-          isMe ? 'right-1' : 'left-1',
-        )}
-      >
-        ↩
-      </motion.span>
-
       <motion.div
-        style={{ x }}
         initial={{ opacity: 0, scale: 0.95, y: 8 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         onDoubleClick={() => onSelect(m.id)}
@@ -635,7 +626,12 @@ function MessageBubble({
       >
         <AnimatePresence>
           {isSelected && (
-            <ReactionPicker onSelect={onReact} onClose={() => onSelect(null)} />
+            <MessageActionMenu
+              onReact={onReact}
+              onReply={() => onReply(m)}
+              onBackground={onBackground}
+              onClose={() => onSelect(null)}
+            />
           )}
         </AnimatePresence>
 
@@ -1060,7 +1056,7 @@ export default function Chat() {
                     onReact={(emoji) => {
                       if (userId) void reactToMessage(m.id, userId, emoji);
                     }}
-                    onSwipeReply={(target) => {
+                    onReply={(target) => {
                       setReplyTarget({
                         id: target.id,
                         text: target.text,
@@ -1070,6 +1066,7 @@ export default function Chat() {
                       });
                       inputRef.current?.focus();
                     }}
+                    onBackground={() => setShowWallpaperModal(true)}
                     onViewMedia={(url, type) => setViewerMedia({ url, type })}
                   />
                 </div>
