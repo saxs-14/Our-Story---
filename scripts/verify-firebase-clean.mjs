@@ -47,9 +47,12 @@ async function main() {
   await signInWithEmailAndPassword(auth, 'phathu@ourstory.app', env.VITE_FIREBASE_HIM_PASSWORD);
   console.log(`✓ Authenticated as phathu@ourstory.app`);
 
-  // Check if legacy email ayanda@ourstory.app exists in Auth
+  // Check if legacy email ayanda@ourstory.app exists in Auth. The password
+  // value here is irrelevant to the check below (both 'user-not-found' and
+  // 'invalid-credential' count as "not active"), so a placeholder is used
+  // rather than any of the app's real historical birthday-derived values.
   try {
-    await signInWithEmailAndPassword(auth, 'ayanda@ourstory.app', '08052026');
+    await signInWithEmailAndPassword(auth, 'ayanda@ourstory.app', 'placeholder-not-a-real-password');
     console.log(`⚠️ Note: ayanda@ourstory.app exists in Firebase Auth.`);
   } catch (err) {
     if (err?.code === 'auth/user-not-found' || err?.code === 'auth/invalid-credential') {
