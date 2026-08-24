@@ -6,6 +6,9 @@
   "description": "Our Story — a luxury digital love world for Phathutshedzo Mamagau & Lihle Nzimande.",
   "author": "Phathutshedzo Mamagau",
   "license": "UNLICENSED",
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
+  },
   "scripts": {
     "dev": "vite",
     "icons": "node scripts/generate-icons.mjs",

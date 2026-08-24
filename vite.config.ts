@@ -103,10 +103,31 @@ export default defineConfig({
     sourcemap: false,
     rollupOptions: {
       output: {
-        manualChunks: {
-          three: ['three', '@react-three/fiber', '@react-three/drei'],
-          motion: ['framer-motion'],
-          vendor: ['react', 'react-dom', 'react-router-dom', 'zustand'],
+        // Vite 8 (via Rolldown) dropped the object form of manualChunks —
+        // https://vite.dev/guide/migration "The object form output.manualChunks
+        // option is not supported anymore." Rewritten as the function form,
+        // matching on the exact node_modules/<pkg>/ path segment (not a bare
+        // substring check) so e.g. 'react' doesn't also swallow 'react-dom' or
+        // '@react-three/fiber' — same chunk membership as the old object form.
+        manualChunks(id) {
+          if (
+            id.includes('node_modules/three/') ||
+            id.includes('node_modules/@react-three/fiber/') ||
+            id.includes('node_modules/@react-three/drei/')
+          ) {
+            return 'three';
+          }
+          if (id.includes('node_modules/framer-motion/')) {
+            return 'motion';
+          }
+          if (
+            id.includes('node_modules/react/') ||
+            id.includes('node_modules/react-dom/') ||
+            id.includes('node_modules/react-router-dom/') ||
+            id.includes('node_modules/zustand/')
+          ) {
+            return 'vendor';
+          }
         },
       },
     },
