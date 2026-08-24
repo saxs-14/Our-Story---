@@ -15,7 +15,7 @@ import {
   syncMemory,
   syncGalleryItem,
   removeFromFirestore,
-  pullCollection,
+  subscribeCollection,
   syncProfilePhoto,
   subscribeProfilePhoto,
 } from '@/lib/firestoreSync';
@@ -104,16 +104,20 @@ interface ContentState {
   deleteUploadedMedia: (url: string) => Promise<void>;
 
   /**
-   * Pull content from Firestore and merge with local state.
-   * Called after login so both partners see each other's content on any device.
-   * Local items always win over cloud items (preserves any offline writes).
+   * Start live-syncing letters/dreams/memories/gallery so an item either
+   * partner adds or edits shows up for the other immediately, on any
+   * device — no reload or re-login needed. Call once after login. Cloud
+   * data is authoritative for any id already in Firestore (so edits
+   * propagate too); local items not yet synced are kept until they land.
    */
-  pullFromFirestore: () => Promise<void>;
+  startContentSync: () => void;
+  stopContentSync: () => void;
 }
 
 const uid = (p: string) => `${p}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 
 let profileUnsubs: Unsubscribe[] = [];
+let contentUnsubs: Unsubscribe[] = [];
 
 export const useContentStore = create<ContentState>()(
   persist(
@@ -212,39 +216,33 @@ export const useContentStore = create<ContentState>()(
         await deleteObject(storageRef(storage, url)).catch(() => {});
       },
 
-      pullFromFirestore: async () => {
-        const state = get();
-        const localLetterIds = new Set(state.letters.map((l) => l.id));
-        const localDreamIds = new Set(state.dreams.map((d) => d.id));
-        const localMemoryIds = new Set(state.memories.map((m) => m.id));
-        const localGalleryIds = new Set(state.gallery.map((g) => g.id));
+      startContentSync: () => {
+        get().stopContentSync();
 
-        const [cloudLetters, cloudDreams, cloudMemories, cloudGallery] = await Promise.all([
-          pullCollection<UserLetter>('letters'),
-          pullCollection<UserDream>('dreams'),
-          pullCollection<UserMemory>('memories'),
-          pullCollection<GalleryItem>('gallery'),
-        ]);
+        // Cloud is authoritative for any id already in Firestore (so an
+        // edit by either partner propagates too, not just new additions);
+        // local-only items (not yet synced — e.g. just added, write still
+        // in flight) are kept appended so they don't flicker away before
+        // their own write round-trips back through this same listener.
+        const mergeCloud =
+          <T extends { id: string; createdAt: string }>(key: 'letters' | 'dreams' | 'memories' | 'gallery') =>
+          (cloudItems: T[]) => {
+            set((s) => {
+              const cloudIds = new Set(cloudItems.map((c) => c.id));
+              const localOnly = (s[key] as unknown as T[]).filter((item) => !cloudIds.has(item.id));
+              const merged = [...cloudItems, ...localOnly].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+              return { [key]: merged } as unknown as Partial<ContentState>;
+            });
+          };
 
-        // Add cloud items missing locally (local version wins when both exist)
-        set((s) => ({
-          letters: [
-            ...s.letters,
-            ...cloudLetters.filter((l) => !localLetterIds.has(l.id)),
-          ].sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
-          dreams: [
-            ...s.dreams,
-            ...cloudDreams.filter((d) => !localDreamIds.has(d.id)),
-          ].sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
-          memories: [
-            ...s.memories,
-            ...cloudMemories.filter((m) => !localMemoryIds.has(m.id)),
-          ].sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
-          gallery: [
-            ...s.gallery,
-            ...cloudGallery.filter((g) => !localGalleryIds.has(g.id)),
-          ].sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
-        }));
+        contentUnsubs.push(subscribeCollection<UserLetter>('letters', mergeCloud('letters')));
+        contentUnsubs.push(subscribeCollection<UserDream>('dreams', mergeCloud('dreams')));
+        contentUnsubs.push(subscribeCollection<UserMemory>('memories', mergeCloud('memories')));
+        contentUnsubs.push(subscribeCollection<GalleryItem>('gallery', mergeCloud('gallery')));
+      },
+      stopContentSync: () => {
+        contentUnsubs.forEach((unsub) => unsub());
+        contentUnsubs = [];
       },
     }),
     {

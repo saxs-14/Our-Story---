@@ -9,7 +9,6 @@ import {
   setDoc,
   deleteDoc,
   collection,
-  getDocs,
   getDoc,
   onSnapshot,
   type Unsubscribe,
@@ -35,15 +34,21 @@ async function removeDoc(col: string, id: string): Promise<void> {
   }
 }
 
-/** Fetch all documents from a Firestore collection (used on first login). */
-export async function pullCollection<T>(col: string): Promise<T[]> {
-  if (!FIREBASE_CONFIGURED || !db) return [];
-  try {
-    const snap = await getDocs(collection(db, col));
-    return snap.docs.map((d) => d.data() as T);
-  } catch {
-    return [];
-  }
+/**
+ * Live-subscribe to every document in a Firestore collection, so an item
+ * either partner adds/edits shows up for the other immediately — no reload
+ * or re-login needed. Fires once immediately with the current contents,
+ * then again on every subsequent change (same shape as a one-shot pull,
+ * plus ongoing live updates).
+ */
+export function subscribeCollection<T>(
+  col: string,
+  onChange: (items: T[]) => void,
+): Unsubscribe {
+  if (!FIREBASE_CONFIGURED || !db) return () => {};
+  return onSnapshot(collection(db, col), (snap) => {
+    onChange(snap.docs.map((d) => d.data() as T));
+  });
 }
 
 /** Overwrite a single shared Firestore document (settings/progress-style state). */

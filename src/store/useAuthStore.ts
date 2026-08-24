@@ -157,12 +157,14 @@ export const useAuthStore = create<AuthState>()(
         }
 
         set({ userId });
-        const [{ useContentStore }, { useProgressStore }, { useAppStore }] = await Promise.all([
-          import('@/store/useContentStore'),
+        const [{ useProgressStore }, { useAppStore }] = await Promise.all([
           import('@/store/useProgressStore'),
           import('@/store/useAppStore'),
         ]);
-        void useContentStore.getState().pullFromFirestore();
+        // useContentStore's letters/dreams/memories/gallery now sync live via
+        // startContentSync() (called from App.tsx's userId effect) instead of
+        // a one-shot pull here — a live listener's first callback already
+        // delivers the full initial contents, so a separate pull is redundant.
         void useProgressStore.getState().pullFromFirestore();
         void useAppStore.getState().pullWallpaperFromFirestore();
         return true;

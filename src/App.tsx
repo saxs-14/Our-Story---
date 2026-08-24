@@ -95,6 +95,7 @@ export default function App() {
     if (!userId) return;
     usePresenceStore.getState().start(userId, partnerOf(userId));
     useContentStore.getState().startProfileSync();
+    useContentStore.getState().startContentSync();
 
     // Keep background push token fresh for locked screen / background notifications
     import('@/lib/push').then(({ isPushSupported, currentNotificationPermission, enablePushNotifications }) => {
@@ -108,6 +109,7 @@ export default function App() {
     return () => {
       usePresenceStore.getState().stop();
       useContentStore.getState().stopProfileSync();
+      useContentStore.getState().stopContentSync();
     };
   }, [userId]);
 
