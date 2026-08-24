@@ -10,6 +10,7 @@ import { formatLongDate } from '@/lib/time';
 function PortraitCard({ id }: { id: PersonId }) {
   const setPhoto = useContentStore((s) => s.setProfilePhoto);
   const uploadMedia = useContentStore((s) => s.uploadMedia);
+  const deleteUploadedMedia = useContentStore((s) => s.deleteUploadedMedia);
   const url = useProfilePhotoUrl(id);
   const person = personById(id);
   const inputId = `portrait-upload-${id}`;
@@ -18,6 +19,7 @@ function PortraitCard({ id }: { id: PersonId }) {
     const file = e.target.files?.[0];
     e.target.value = '';
     if (!file) return;
+    const previousCloudUrl = useContentStore.getState().profiles[id]?.photoUrl;
     // Save locally first so the new photo shows instantly on this device
     // and survives reload even before the cloud upload finishes — the
     // upload (which is what lets the other partner see it) runs after.
@@ -25,7 +27,11 @@ function PortraitCard({ id }: { id: PersonId }) {
     setPhoto(id, record.id, undefined);
     haptic('soft');
     void uploadMedia(file, `profiles/${id}/${Date.now()}_${file.name}`).then((cloudUrl) => {
-      if (cloudUrl) setPhoto(id, record.id, cloudUrl);
+      if (cloudUrl) {
+        setPhoto(id, record.id, cloudUrl);
+        // Replacing a photo shouldn't leave the old one taking up storage forever.
+        if (previousCloudUrl) void deleteUploadedMedia(previousCloudUrl);
+      }
     });
   };
 

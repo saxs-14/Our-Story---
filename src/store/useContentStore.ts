@@ -20,7 +20,7 @@ import {
   subscribeProfilePhoto,
 } from '@/lib/firestoreSync';
 import type { Unsubscribe } from 'firebase/firestore';
-import { ref as storageRef, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
+import { ref as storageRef, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
 import { storage, FIREBASE_CONFIGURED } from '@/lib/firebase';
 
 export interface UserLetter {
@@ -98,6 +98,10 @@ interface ContentState {
 
   /** Upload a file to Firebase Storage and return the download URL */
   uploadMedia: (file: File, path: string) => Promise<string | null>;
+  /** Best-effort delete of a previously-uploaded file, so replacing it (e.g.
+   *  changing a profile photo) doesn't leak storage forever. Safe to call
+   *  with any URL — failures (already gone, not a Storage URL) are ignored. */
+  deleteUploadedMedia: (url: string) => Promise<void>;
 
   /**
    * Pull content from Firestore and merge with local state.
@@ -201,6 +205,11 @@ export const useContentStore = create<ContentState>()(
         } catch {
           return null;
         }
+      },
+
+      deleteUploadedMedia: async (url) => {
+        if (!FIREBASE_CONFIGURED || !storage) return;
+        await deleteObject(storageRef(storage, url)).catch(() => {});
       },
 
       pullFromFirestore: async () => {
