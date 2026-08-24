@@ -26,6 +26,9 @@ interface AppState {
   hapticsOn: boolean;
   ambientOn: boolean;
   notificationsOn: boolean;
+  /** Whether the in-app "turn on notifications?" prompt has been dismissed,
+   *  so it asks once rather than nagging on every login. */
+  notificationPromptDismissed: boolean;
   musicVolume: number; // 0..1
   introSeen: boolean;
   lastVisit: string | null;
@@ -52,6 +55,7 @@ interface AppState {
   setHaptics: (v: boolean) => void;
   setAmbient: (v: boolean) => void;
   setNotifications: (v: boolean) => void;
+  dismissNotificationPrompt: () => void;
   setMusicVolume: (v: number) => void;
   markIntroSeen: () => void;
   touchVisit: () => void;
@@ -82,6 +86,7 @@ export const useAppStore = create<AppState>()(
       hapticsOn: true,
       ambientOn: true,
       notificationsOn: true,
+      notificationPromptDismissed: false,
       musicVolume: 0.5,
       introSeen: false,
       lastVisit: null,
@@ -104,6 +109,7 @@ export const useAppStore = create<AppState>()(
       },
       setAmbient: (ambientOn) => set({ ambientOn }),
       setNotifications: (notificationsOn) => set({ notificationsOn }),
+      dismissNotificationPrompt: () => set({ notificationPromptDismissed: true }),
       setMusicVolume: (musicVolume) => set({ musicVolume }),
       markIntroSeen: () => set({ introSeen: true }),
       touchVisit: () => set({ lastVisit: new Date().toISOString() }),

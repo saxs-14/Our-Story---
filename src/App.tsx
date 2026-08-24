@@ -20,6 +20,7 @@ import { AchievementWatcher } from '@/components/system/AchievementWatcher';
 import { CelebrationMode } from '@/components/system/CelebrationMode';
 import { MusicPlayer } from '@/components/system/MusicPlayer';
 import { ChatNotifier } from '@/components/system/ChatNotifier';
+import { NotificationPrompt } from '@/components/system/NotificationPrompt';
 import { GardenNotifier } from '@/components/system/GardenNotifier';
 import { CallModal } from '@/components/call/CallModal';
 import { HeartFilledIcon } from '@/components/icons';
@@ -138,6 +139,7 @@ export default function App() {
           <AchievementWatcher />
           <CelebrationMode />
           <ChatNotifier />
+          <NotificationPrompt />
           <GardenNotifier />
           <MusicPlayer />
           <CallModal />

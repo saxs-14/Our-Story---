@@ -13,17 +13,14 @@
 import { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { Capacitor } from '@capacitor/core';
 import { useChatStore } from '@/store/useChatStore';
 import { useAuthStore, personById, partnerOf } from '@/store/useAuthStore';
 import { useAppStore } from '@/store/useAppStore';
 import { useSound } from '@/hooks/useSound';
 import { haptic } from '@/lib/haptics';
 import { ChatIcon } from '@/components/icons';
-import {
-  requestNotificationPermission,
-  showMessageNotification,
-  registerNotificationTap,
-} from '@/lib/notify';
+import { showMessageNotification, registerNotificationTap } from '@/lib/notify';
 import { enablePushNotifications, registerPushTap } from '@/lib/push';
 
 function previewOf(text: string, mediaType?: 'image' | 'video' | 'audio'): string {
@@ -57,17 +54,25 @@ export function ChatNotifier() {
     return () => unsub?.();
   }, [userId, subscribe]);
 
-  // Ask permission once after login (only if notifications are enabled).
-  // Previously this only covered in-app/backgrounded local notifications —
-  // closed-app push required a separate manual "Enable" tap buried in
-  // Settings that nobody knew to look for, so it silently never got turned
-  // on. Now a single grant here also registers the FCM token, the same way
-  // Settings' manual button does, so closed-app push works from first login.
+  // Re-register the push token on every app open. On native, Capacitor's
+  // own permission prompt isn't subject to the "must be a direct tap"
+  // restriction below, so it's safe to attempt unconditionally. On web,
+  // only do this silently when permission was already granted in an
+  // earlier session (mirrors Settings' own re-registration on mount) — it
+  // must NOT be what first requests permission: iOS Safari requires
+  // Notification.requestPermission() to run synchronously from within a
+  // genuine tap, and a useEffect firing as a *consequence* of login doesn't
+  // count, so that used to silently do nothing on iOS. The actual
+  // first-time ask now lives in NotificationPrompt's button tap.
   useEffect(() => {
     if (!userId || !notificationsOn) return;
-    void requestNotificationPermission().then((granted) => {
-      if (granted) void enablePushNotifications(userId);
-    });
+    if (Capacitor.isNativePlatform()) {
+      void enablePushNotifications(userId);
+      return;
+    }
+    if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+      void enablePushNotifications(userId);
+    }
   }, [userId, notificationsOn]);
 
   // Tapping a native notification opens the chat — local (foreground/backgrounded)
