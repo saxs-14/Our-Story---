@@ -664,9 +664,14 @@ function MessageBubble({
             type="button"
             aria-label="View image"
             onClick={() => onViewMedia(m.mediaUrl!, 'image')}
-            className="tap mb-1.5 block w-full overflow-hidden rounded-2xl border border-white/10"
+            className="tap mb-1.5 inline-block max-w-full overflow-hidden rounded-2xl border border-white/10"
           >
-            <img src={m.mediaUrl} alt="Attachment" className="max-h-60 w-full object-cover" loading="lazy" />
+            <img
+              src={m.mediaUrl}
+              alt="Attachment"
+              className="block h-auto max-h-80 w-auto max-w-full object-contain"
+              loading="lazy"
+            />
           </button>
         )}
         {m.mediaUrl && m.mediaType === 'video' && (
