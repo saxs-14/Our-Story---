@@ -8,6 +8,7 @@ import { getAuth, type Auth } from 'firebase/auth';
 import { getFirestore, enableIndexedDbPersistence, type Firestore } from 'firebase/firestore';
 import { getStorage, type FirebaseStorage } from 'firebase/storage';
 import { getFunctions, type Functions } from 'firebase/functions';
+import { initializeAppCheck, ReCaptchaV3Provider } from 'firebase/app-check';
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -42,6 +43,39 @@ if (FIREBASE_CONFIGURED) {
   enableIndexedDbPersistence(db).catch(() => {
     // Multi-tab or private browsing — not critical, chat still works online
   });
+
+  // App Check — proves calls to signInAsPartner actually come from this app,
+  // not a bot hammering the callable endpoint directly with just the public
+  // API key (which anyone can see, by design — Firebase client keys aren't
+  // secret). Uses reCAPTCHA v3 for both web AND the native APK: Capacitor's
+  // WebView is Chromium-based with real internet access, so the same web
+  // provider works inside the native app too — no separate native plugin
+  // (e.g. Play Integrity) needed, which is good because this app isn't
+  // Play Store-distributed and Play Integrity's normal attestation flow
+  // doesn't cleanly apply to a permanently-sideloaded APK anyway.
+  //
+  // Silently skips entirely if VITE_RECAPTCHA_SITE_KEY isn't set yet (see
+  // .env.example) — the site key must be created once in the Firebase
+  // Console (App Check → register app → reCAPTCHA v3) before this can do
+  // anything. Cloud Functions enforcement (enforceAppCheck on
+  // signInAsPartner) is deliberately NOT enabled server-side yet — see the
+  // comment on that function in functions/index.js for why and the exact
+  // rollout sequencing.
+  const recaptchaSiteKey = import.meta.env.VITE_RECAPTCHA_SITE_KEY as string | undefined;
+  if (recaptchaSiteKey) {
+    if (import.meta.env.DEV) {
+      // Real reCAPTCHA v3 keys are bound to specific domains and won't
+      // validate on localhost. Firebase's debug provider bypasses real
+      // attestation for exactly this case — it logs a token to the console
+      // on first run that gets registered once (per dev machine) in the
+      // Firebase Console's App Check "Manage debug tokens" list.
+      (self as unknown as { FIREBASE_APPCHECK_DEBUG_TOKEN?: boolean }).FIREBASE_APPCHECK_DEBUG_TOKEN = true;
+    }
+    initializeAppCheck(app, {
+      provider: new ReCaptchaV3Provider(recaptchaSiteKey),
+      isTokenAutoRefreshEnabled: true,
+    });
+  }
 }
 
 export { app, auth, db, storage, functions };

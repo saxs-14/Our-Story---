@@ -236,6 +236,19 @@ const normalizeAnswer = (s) => String(s ?? '').trim().toLowerCase().replace(/[^a
 const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000; // 1 hour
 const RATE_LIMIT_MAX_ATTEMPTS = 20;
 
+// The rate limiter above is keyed only by personId ('her'/'him'), not by
+// caller — this is the one genuinely unauthenticated, internet-reachable
+// endpoint in this app (anyone with the public project config, which isn't
+// secret, can call it directly), so someone could burn out the real
+// partner's 20 attempts/hour and lock them out of login for an hour. The
+// real fix is Firebase App Check (client wiring already added in
+// src/lib/firebase.ts, gated on VITE_RECAPTCHA_SITE_KEY — see
+// .env.example step 8). To finish it here: add `enforceAppCheck: true` to
+// this function's onCall options below. DO NOT do that until you've
+// confirmed (a) the site key is set and the debug token registered, and
+// (b) a real login succeeds end-to-end on BOTH the web build and the
+// native APK with App Check enabled client-side but not yet enforced —
+// only then flip enforcement on, otherwise every login fails at once.
 exports.signInAsPartner = onCall({ region: 'africa-south1' }, async (request) => {
   const { personId, answer } = request.data || {};
   if (personId !== 'her' && personId !== 'him') {
