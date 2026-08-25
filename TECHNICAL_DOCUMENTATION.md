@@ -67,7 +67,14 @@ graph TD
 ## 3. Core Feature Modules & Implementation Details
 
 ### 3.1 Authentication & Security (Birthday Gate)
-- **Mechanism:** Dual-profile client authorization without public login prompts.
+- **Mechanism:** Server-verified custom-token sign-in. The client never holds a real
+  Firebase Auth credential — it calls the `signInAsPartner` Cloud Function with the
+  birthday-style answer the person typed; the function checks it against the accepted
+  values server-side (rate-limited via a Firestore-transaction-guarded counter) and, if
+  correct, mints a short-lived custom token via `signInWithCustomToken`. This replaced an
+  earlier client-side password-derivation design specifically because this repo is public
+  and deploys to public URLs — nothing baked into a client bundle can stay secret there,
+  no matter how it's derived.
 - **Normalization Algorithm:** Standardizes user date inputs across multiple standard formats (`DD Month YYYY`, `DD/MM/YYYY`, `DD-MM-YYYY`, `YYYY-MM-DD`, `DDMMYYYY`).
 - **Partner Access:**
   - **Phathu (Saxs):** `14 June 2005`
@@ -85,7 +92,11 @@ graph TD
 - **Firestore Synchronization:** Snapshot listeners deliver real-time text, images, and audio waveforms.
 - **Delivered / Read Receipts:** Double checkmark status (`✓✓`) tracking delivery and active viewing.
 - **Interactive Voice Notes:**
-  - In-browser `MediaRecorder` captures audio streams in `audio/webm`.
+  - In-browser `MediaRecorder` captures audio in whichever format the device actually
+    supports (detected via `MediaRecorder.isTypeSupported`, not hardcoded) — WebM/Opus on
+    Chrome/Firefox/Android, AAC/MP4 on Safari, which has no WebM encoder at all. A
+    server-side Cloud Function additionally transcodes every voice note to AAC so it's
+    playable across every browser regardless of which one recorded it.
   - Visual waveform generator dynamically renders sound energy bars.
   - Speed toggle engine supporting $1.0\times, 1.5\times,$ and $2.0\times$ playback rates.
 - **Dynamic Wallpaper Engine:**
@@ -104,8 +115,10 @@ graph TD
 - **No-Template Rule:** Clean canvas allowing user-composed life goals and milestone tracking.
 
 ### 3.6 Living Garden Ecosystem
-- **Algorithm:** Five-stage growth system based on relationship longevity ($D$) and hydration drops ($W$):
-$$\text{Stage} = \min\left(4, \left\lfloor \frac{D + W \times 2}{30} \right\rfloor\right)$$
+- **Algorithm:** Five-stage growth system (`gardenStageFrom` in `useProgressStore.ts`) — a
+  base stage from relationship longevity ($D$, in days), plus one bonus stage once
+  watering count reaches a threshold, capped at stage 4:
+$$\text{base} = \begin{cases} 3 & D \geq 365 \\ 2 & D \geq 100 \\ 1 & D \geq 30 \\ 0 & \text{otherwise} \end{cases} \qquad \text{Stage} = \min\left(4,\ \text{base} + \left[W \geq 25\right]\right)$$
 - **Growth Stages:**
   1. *Seed of Us 🌱*
   2. *Tender Sprout 🌿*
