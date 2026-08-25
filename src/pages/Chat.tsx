@@ -10,6 +10,7 @@ import { usePresenceStore } from '@/store/usePresenceStore';
 import { useContentStore, getUploadPath } from '@/store/useContentStore';
 import { useMediaUrl } from '@/hooks/useMediaUrl';
 import { useProfilePhotoUrl } from '@/hooks/useProfilePhotoUrl';
+import { useDialogA11y } from '@/hooks/useDialogA11y';
 import { saveMedia, getMedia } from '@/lib/idb';
 import { CloseIcon, ChevronLeftIcon } from '@/components/icons';
 import { haptic } from '@/lib/haptics';
@@ -17,6 +18,10 @@ import { cn } from '@/lib/cn';
 import { useSound } from '@/hooks/useSound';
 
 const QUICK_EMOJIS = ['❤️', '🌹', '🥹', '🔥', '❄️', '✨', '😘', '💍'];
+
+// Module-level (not component state) so it survives Chat's route
+// remounts — see the wallpaper-retry effect below for why that matters.
+const wallpaperRetriesInFlight = new Set<string>();
 
 /**
  * Picks a real, browser-supported recording format instead of trusting a
@@ -234,6 +239,7 @@ function VoiceNoteBubble({
 
 /** Chat Wallpaper Customizer Modal */
 function WallpaperModal({ onClose }: { onClose: () => void }) {
+  const dialogRef = useDialogA11y<HTMLDivElement>(onClose);
   const userId = useAuthStore((s) => s.userId);
   const chatWallpaper = useAppStore((s) => s.chatWallpaper);
   const setChatWallpaper = useAppStore((s) => s.setChatWallpaper);
@@ -266,8 +272,11 @@ function WallpaperModal({ onClose }: { onClose: () => void }) {
         onClick={onClose}
       />
       <motion.div
+        ref={dialogRef}
         role="dialog"
+        aria-modal="true"
         aria-label="Customize Chat Wallpaper"
+        tabIndex={-1}
         className="glass-strong relative z-10 w-full max-w-md rounded-4xl border border-rosegold-400/30 p-6 shadow-2xl"
         initial={{ y: 30, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
@@ -870,6 +879,14 @@ export default function Chat() {
   // upload finished, the cloud URL never got saved (stuck local-only forever,
   // invisible to the other partner). Retry it once on mount from the cached
   // IndexedDB blob whenever we have a mediaId but no cloud URL yet.
+  //
+  // Chat is a lazily-mounted route (App.tsx), not a once-per-session
+  // singleton — navigating away and back re-runs this effect. Without a
+  // guard, an upload still in flight from a previous mount (slow
+  // connection — exactly when this retry matters most) gets a second,
+  // concurrent duplicate upload started for the same mediaId on the next
+  // visit. wallpaperRetriesInFlight is module-level (not component state)
+  // specifically so it survives across those remounts.
   useEffect(() => {
     if (!userId) return;
     const retry = async (
@@ -878,11 +895,17 @@ export default function Chat() {
       apply: (id: string, url: string) => void,
     ) => {
       if (!mediaId || cloudUrl) return;
-      const rec = await getMedia(mediaId);
-      if (!rec) return;
-      const file = new File([rec.blob], rec.name, { type: rec.type });
-      const url = await uploadMedia(file, getUploadPath(userId, rec.name));
-      if (url) apply(mediaId, url);
+      if (wallpaperRetriesInFlight.has(mediaId)) return;
+      wallpaperRetriesInFlight.add(mediaId);
+      try {
+        const rec = await getMedia(mediaId);
+        if (!rec) return;
+        const file = new File([rec.blob], rec.name, { type: rec.type });
+        const url = await uploadMedia(file, getUploadPath(userId, rec.name));
+        if (url) apply(mediaId, url);
+      } finally {
+        wallpaperRetriesInFlight.delete(mediaId);
+      }
     };
     void retry(customImageMediaId, customImageCloudUrl, setChatCustomImage);
     void retry(customVideoMediaId, customVideoCloudUrl, setChatCustomVideo);
@@ -998,7 +1021,11 @@ export default function Chat() {
         setRecordSeconds((s) => s + 1);
       }, 1000);
     } catch {
-      alert('Microphone access is required to record voice notes.');
+      // Was a native alert() — jarring and inconsistent with the rest of
+      // the app's UI (especially on iOS PWA, where it reads as a browser
+      // error rather than part of the app). Reuses the same dismissible
+      // banner sendMedia's failures already show.
+      useChatStore.setState({ mediaError: 'Microphone access is required to record voice notes.' });
     }
   };
 
@@ -1162,6 +1189,15 @@ export default function Chat() {
 
         {/* ── CHAT MESSAGES SCROLL VIEW ─────────────────────────────── */}
         <div className="flex-1 overflow-y-auto overscroll-contain px-4 py-4 [scrollbar-width:none] [touch-action:pan-y]">
+          {messages.length === 0 && (
+            <div className="flex h-full flex-col items-center justify-center gap-2 text-center text-warmwhite/70">
+              <span className="text-4xl">💬</span>
+              <p className="font-display text-lg text-warmwhite">Say hello to {partner.nickname}</p>
+              <p className="max-w-xs text-xs text-warmwhite/50">
+                This is the start of your conversation — nothing here yet.
+              </p>
+            </div>
+          )}
           {messages.map((m, i) => {
             const isMe = m.senderId === userId;
             const prev = messages[i - 1];
