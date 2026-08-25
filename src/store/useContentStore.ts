@@ -252,6 +252,21 @@ export const useContentStore = create<ContentState>()(
       // See useAuthStore.ts — without a migrate fn, a version bump with no
       // matching persisted version silently wipes this store back to empty.
       migrate: (persisted) => persisted as ContentState,
+      // Unlike useChatStore (capped at the most recent 80 messages), these
+      // four arrays had NO size cap at all — meant to accumulate for years
+      // of real use, they were the one part of local storage actually at
+      // risk of hitting the browser's ~5-10MB localStorage quota. Safe to
+      // cap now that startContentSync() (App.tsx) live-syncs the full set
+      // from Firestore anyway — this is just a fast-boot local cache, not
+      // the source of truth. Arrays are already createdAt-desc sorted, so
+      // slicing keeps the most recent items.
+      partialize: (s) => ({
+        ...s,
+        letters: s.letters.slice(0, 200),
+        dreams: s.dreams.slice(0, 200),
+        memories: s.memories.slice(0, 200),
+        gallery: s.gallery.slice(0, 200),
+      }),
     },
   ),
 );
