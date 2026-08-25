@@ -13,6 +13,7 @@ import { useMediaUrl } from '@/hooks/useMediaUrl';
 import { formatLongDate } from '@/lib/time';
 import { cn } from '@/lib/cn';
 import { haptic } from '@/lib/haptics';
+import { useDialogA11y } from '@/hooks/useDialogA11y';
 
 type Bucket = MemoryType | 'ours';
 type Filter = Bucket | 'all';
@@ -80,6 +81,7 @@ function Thumb({ id }: { id: string }) {
 }
 
 function ComposeMoment({ onClose }: { onClose: () => void }) {
+  const dialogRef = useDialogA11y<HTMLDivElement>(onClose);
   const userId = useAuthStore((s) => s.userId);
   const addMemory = useContentStore((s) => s.addMemory);
   const today = new Date().toISOString().slice(0, 10);
@@ -118,8 +120,11 @@ function ComposeMoment({ onClose }: { onClose: () => void }) {
         onClick={onClose}
       />
       <motion.div
+        ref={dialogRef}
         role="dialog"
+        aria-modal="true"
         aria-label="Add a real moment"
+        tabIndex={-1}
         className="glass-strong relative z-10 max-h-[88dvh] w-full max-w-md overflow-y-auto rounded-4xl border border-rosegold-400/30 p-6 shadow-2xl"
         initial={{ y: 40, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}

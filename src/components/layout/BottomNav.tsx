@@ -7,6 +7,7 @@ import { cn } from '@/lib/cn';
 import { haptic } from '@/lib/haptics';
 import { useProgressStore } from '@/store/useProgressStore';
 import { useChatStore } from '@/store/useChatStore';
+import { useDialogA11y } from '@/hooks/useDialogA11y';
 
 /**
  * A floating glass dock: 5 primary destinations + a central "More" control
@@ -15,6 +16,7 @@ import { useChatStore } from '@/store/useChatStore';
  */
 export function BottomNav() {
   const [open, setOpen] = useState(false);
+  const dialogRef = useDialogA11y<HTMLDivElement>(() => setOpen(false), open);
   const location = useLocation();
   const secretUnlocked = useProgressStore((s) => s.secretUnlocked);
   const unreadCount = useChatStore((s) => s.unreadCount);
@@ -112,8 +114,11 @@ export function BottomNav() {
               exit={{ opacity: 0 }}
             />
             <motion.div
+              ref={dialogRef}
               role="dialog"
+              aria-modal="true"
               aria-label="All sections"
+              tabIndex={-1}
               className="glass-strong relative z-10 mb-0 w-full max-w-lg rounded-t-5xl px-6 pb-[calc(env(safe-area-inset-bottom)+1.5rem)] pt-6"
               initial={{ y: '100%' }}
               animate={{ y: 0 }}

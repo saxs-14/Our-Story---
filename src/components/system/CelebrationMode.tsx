@@ -6,6 +6,7 @@ import relationship from '@/config/relationship';
 import { isBirthdayToday, isAnniversaryToday, isMonthiversaryToday } from '@/lib/time';
 import { useSound } from '@/hooks/useSound';
 import { haptic } from '@/lib/haptics';
+import { useDialogA11y } from '@/hooks/useDialogA11y';
 
 interface Celebration {
   key: string;
@@ -69,6 +70,7 @@ export function CelebrationMode() {
     if (active) sessionStorage.setItem('our-story:celebrated:' + active.key, '1');
     setActive(null);
   };
+  const dialogRef = useDialogA11y<HTMLDivElement>(dismiss, Boolean(active));
 
   return (
     <AnimatePresence>
@@ -83,8 +85,11 @@ export function CelebrationMode() {
           >
             <button type="button" aria-label="Dismiss" className="absolute inset-0 bg-plum-900/40 backdrop-blur-sm" onClick={dismiss} />
             <motion.div
+              ref={dialogRef}
               role="dialog"
+              aria-modal="true"
               aria-label={active.title}
+              tabIndex={-1}
               className="glass-strong relative z-10 w-full max-w-sm rounded-5xl p-8 text-center shadow-glass-lg"
               initial={{ scale: 0.85, y: 20 }}
               animate={{ scale: 1, y: 0 }}

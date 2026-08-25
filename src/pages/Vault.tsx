@@ -8,6 +8,7 @@ import { useProgressStore } from '@/store/useProgressStore';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
 import { haptic } from '@/lib/haptics';
 import { useSound } from '@/hooks/useSound';
+import { useDialogA11y } from '@/hooks/useDialogA11y';
 
 function EnvelopeCard({ letter, onOpen, opened }: { letter: OpenWhenLetter; onOpen: () => void; opened: boolean }) {
   return (
@@ -49,6 +50,7 @@ function EnvelopeCard({ letter, onOpen, opened }: { letter: OpenWhenLetter; onOp
 }
 
 function LetterView({ letter, onClose }: { letter: OpenWhenLetter; onClose: () => void }) {
+  const dialogRef = useDialogA11y<HTMLDivElement>(onClose);
   const reduce = useReducedMotion();
   return (
     <motion.div
@@ -60,8 +62,11 @@ function LetterView({ letter, onClose }: { letter: OpenWhenLetter; onClose: () =
       <button type="button" aria-label="Close letter" className="absolute inset-0 bg-plum-900/55 backdrop-blur-md" onClick={onClose} />
 
       <motion.div
+        ref={dialogRef}
         role="dialog"
+        aria-modal="true"
         aria-label={letter.occasion}
+        tabIndex={-1}
         className="perspective relative z-10 w-full max-w-md"
       >
         {/* Envelope opening */}

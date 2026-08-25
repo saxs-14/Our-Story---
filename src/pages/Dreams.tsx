@@ -13,10 +13,12 @@ import { useAuthStore, personById } from '@/store/useAuthStore';
 import { cn } from '@/lib/cn';
 import { haptic } from '@/lib/haptics';
 import { useSound } from '@/hooks/useSound';
+import { useDialogA11y } from '@/hooks/useDialogA11y';
 
 const EMOJI_CHOICES = ['✨', '🚗', '💍', '🏠', '✈️', '🌅', '🏝️', '🌹', '🎶', '🌳', '🎈', '💞'];
 
 function ComposeDream({ onClose }: { onClose: () => void }) {
+  const dialogRef = useDialogA11y<HTMLDivElement>(onClose);
   const userId = useAuthStore((s) => s.userId);
   const addDream = useContentStore((s) => s.addDream);
   const [title, setTitle] = useState('');
@@ -51,8 +53,11 @@ function ComposeDream({ onClose }: { onClose: () => void }) {
         onClick={onClose}
       />
       <motion.div
+        ref={dialogRef}
         role="dialog"
+        aria-modal="true"
         aria-label="Add a dream"
+        tabIndex={-1}
         className="glass-strong relative z-10 w-full max-w-md rounded-4xl border border-rosegold-400/30 p-6 shadow-2xl"
         initial={{ y: 40, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}

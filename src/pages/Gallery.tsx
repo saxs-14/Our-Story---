@@ -12,10 +12,12 @@ import { useAuthStore, personById } from '@/store/useAuthStore';
 import { useMediaUrl } from '@/hooks/useMediaUrl';
 import { cn } from '@/lib/cn';
 import { haptic } from '@/lib/haptics';
+import { useDialogA11y } from '@/hooks/useDialogA11y';
 
 type Mode = 'polaroid' | 'grid' | 'scrapbook';
 
 function UploadModal({ onClose }: { onClose: () => void }) {
+  const dialogRef = useDialogA11y<HTMLDivElement>(onClose);
   const userId = useAuthStore((s) => s.userId);
   const addGalleryItem = useContentStore((s) => s.addGalleryItem);
   const [caption, setCaption] = useState('');
@@ -48,8 +50,11 @@ function UploadModal({ onClose }: { onClose: () => void }) {
         onClick={onClose}
       />
       <motion.div
+        ref={dialogRef}
         role="dialog"
+        aria-modal="true"
         aria-label="Upload photo or video"
+        tabIndex={-1}
         className="glass-strong relative z-10 w-full max-w-md rounded-4xl border border-rosegold-400/30 p-6 shadow-2xl"
         initial={{ y: 40, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}

@@ -7,6 +7,7 @@ import { useContentStore } from '@/store/useContentStore';
 import { useAuthStore } from '@/store/useAuthStore';
 import { haptic } from '@/lib/haptics';
 import { useSound } from '@/hooks/useSound';
+import { useDialogA11y } from '@/hooks/useDialogA11y';
 
 interface Props {
   onClose: () => void;
@@ -15,6 +16,7 @@ interface Props {
 const CATEGORIES = ['All', 'Supercar', 'Sportback & Wagon', 'Performance SUV', 'Electric GT', 'Pocket Rocket'];
 
 export function AudiDreamGarage({ onClose }: Props) {
+  const dialogRef = useDialogA11y<HTMLDivElement>(onClose);
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [activeCar, setActiveCar] = useState<AudiModel>(AUDI_MODELS[0]);
   const [savedNote, setSavedNote] = useState<string | null>(null);
@@ -59,8 +61,11 @@ export function AudiDreamGarage({ onClose }: Props) {
       />
 
       <motion.div
+        ref={dialogRef}
         role="dialog"
+        aria-modal="true"
         aria-label="Audi Dream Garage"
+        tabIndex={-1}
         className="glass-strong relative z-10 flex max-h-[92dvh] w-full max-w-3xl flex-col overflow-hidden rounded-4xl border border-rosegold-400/40 shadow-[0_0_50px_rgba(0,0,0,0.8)]"
         initial={{ scale: 0.94, y: 30 }}
         animate={{ scale: 1, y: 0 }}

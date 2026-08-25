@@ -12,6 +12,7 @@ import { useAuthStore, personById, partnerOf } from '@/store/useAuthStore';
 import { formatLongDate } from '@/lib/time';
 import { cn } from '@/lib/cn';
 import { haptic } from '@/lib/haptics';
+import { useDialogA11y } from '@/hooks/useDialogA11y';
 
 const SEAL_COLORS = [
   { name: 'Rose Gold', color: '#b76e79' },
@@ -35,6 +36,7 @@ function userToLetter(u: UserLetter): Letter {
 }
 
 function ComposeLetter({ onClose }: { onClose: () => void }) {
+  const dialogRef = useDialogA11y<HTMLDivElement>(onClose);
   const userId = useAuthStore((s) => s.userId);
   const addLetter = useContentStore((s) => s.addLetter);
   const [title, setTitle] = useState('');
@@ -69,8 +71,11 @@ function ComposeLetter({ onClose }: { onClose: () => void }) {
         onClick={onClose}
       />
       <motion.div
+        ref={dialogRef}
         role="dialog"
+        aria-modal="true"
         aria-label="Write a love letter"
+        tabIndex={-1}
         className="glass-strong relative z-10 flex max-h-[88dvh] w-full max-w-lg flex-col rounded-4xl border border-rosegold-400/30 p-6 shadow-2xl"
         initial={{ y: 40, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
@@ -154,6 +159,7 @@ function ComposeLetter({ onClose }: { onClose: () => void }) {
 type Filter = LetterCategory | 'All' | 'Bookmarked';
 
 function Reader({ letter, onClose }: { letter: Letter; onClose: () => void }) {
+  const dialogRef = useDialogA11y<HTMLDivElement>(onClose);
   const markRead = useProgressStore((s) => s.markLetterRead);
   const bookmarks = useProgressStore((s) => s.letterBookmarks);
   const toggleBookmark = useProgressStore((s) => s.toggleBookmark);
@@ -186,8 +192,11 @@ function Reader({ letter, onClose }: { letter: Letter; onClose: () => void }) {
         onClick={onClose}
       />
       <motion.div
+        ref={dialogRef}
         role="dialog"
+        aria-modal="true"
         aria-label={letter.title}
+        tabIndex={-1}
         className="glass-strong relative z-10 flex max-h-[86dvh] w-full max-w-lg flex-col rounded-4xl border border-rosegold-400/30 shadow-glass-lg"
         initial={{ y: 40, opacity: 0, scale: 0.96 }}
         animate={{ y: 0, opacity: 1, scale: 1 }}
