@@ -33,7 +33,14 @@ export function OfflineIndicator() {
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -20 }}
           transition={{ type: 'spring', stiffness: 400, damping: 32 }}
-          className="fixed inset-x-0 z-[90] flex justify-center px-3"
+          // pointer-events-none on the wrapper: this is a full-width strip
+          // (inset-x-0) at the same vertical band as several other fixed UI
+          // elements (e.g. MediaViewerModal's close button) — without this,
+          // a purely informational banner would silently swallow taps
+          // across its whole width, not just its visible pill, at a higher
+          // z-index than what it's covering. Re-enabled on the pill itself
+          // since that's the only part that's ever meant to be seen/touched.
+          className="pointer-events-none fixed inset-x-0 z-[90] flex justify-center px-3"
           style={{ top: 'calc(env(safe-area-inset-top) + 0.75rem)' }}
           role="status"
           aria-live="polite"

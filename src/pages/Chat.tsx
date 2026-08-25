@@ -533,7 +533,14 @@ function MediaViewerModal({
         <motion.img
           src={url}
           alt="Attachment"
-          className="max-h-full max-w-full rounded-lg object-contain"
+          // min-h-0/min-w-0 override the flex-item default automatic
+          // minimum size (= the image's intrinsic size for a replaced
+          // element) — without them, a large phone-camera photo can't
+          // shrink below its native resolution and overflows this flex
+          // container, getting clipped by the fixed-viewport edges instead
+          // of scaling down. max-h/w-full + object-contain only take effect
+          // once this default minimum is cleared.
+          className="max-h-full max-w-full min-h-0 min-w-0 rounded-lg object-contain"
           initial={{ scale: 0.92, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           onClick={(e) => e.stopPropagation()}
@@ -542,9 +549,12 @@ function MediaViewerModal({
         <motion.video
           src={url}
           controls
-          autoPlay
+          // No autoPlay: this video isn't muted, and iOS Safari's autoplay
+          // policy silently blocks unmuted autoplay — the play() call
+          // rejects with no visible error, leaving a black frame that looks
+          // broken. `controls` lets the user start playback themselves.
           playsInline
-          className="max-h-full max-w-full rounded-lg object-contain"
+          className="max-h-full max-w-full min-h-0 min-w-0 rounded-lg object-contain"
           initial={{ scale: 0.92, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           onClick={(e) => e.stopPropagation()}
@@ -693,6 +703,11 @@ function MessageBubble({
   const MOVE_TOLERANCE = 10;
 
   const startPress = (px: number, py: number) => {
+    // Guards against iOS Safari firing both PointerEvent and TouchEvent for
+    // the same physical touch (pointerdown then touchstart back-to-back) —
+    // without this, the second call would silently orphan the first timer
+    // instead of clearing it, doubling the haptic + onSelect call.
+    if (pressRef.current) return;
     pressRef.current = {
       x: px,
       y: py,
@@ -727,13 +742,34 @@ function MessageBubble({
         animate={{ opacity: 1, scale: 1, y: 0 }}
         onDoubleClick={() => onSelect(m.id)}
         onPointerDown={(e) => {
-          e.currentTarget.setPointerCapture(e.pointerId);
+          // setPointerCapture + Pointer Events are documented-unreliable in
+          // iOS Safari home-screen (standalone PWA) contexts — this is the
+          // root cause of "long-press menu doesn't open at all" there. The
+          // touch handlers below are a native fallback for the same
+          // gesture; startPress()'s re-entrancy guard keeps both paths
+          // firing for one physical touch from double-triggering.
+          try {
+            e.currentTarget.setPointerCapture(e.pointerId);
+          } catch {
+            // Safe to ignore — capture is a nice-to-have, not required for
+            // the press/timer logic itself to work.
+          }
           startPress(e.clientX, e.clientY);
         }}
         onPointerMove={(e) => movePress(e.clientX, e.clientY)}
         onPointerUp={endPress}
         onPointerLeave={endPress}
         onPointerCancel={endPress}
+        onTouchStart={(e) => {
+          const t = e.touches[0];
+          if (t) startPress(t.clientX, t.clientY);
+        }}
+        onTouchMove={(e) => {
+          const t = e.touches[0];
+          if (t) movePress(t.clientX, t.clientY);
+        }}
+        onTouchEnd={endPress}
+        onTouchCancel={endPress}
         onContextMenu={(e) => e.preventDefault()}
         className={cn(
           'relative max-w-[82%] px-3.5 py-2 text-sm shadow-md transition-all [touch-action:pan-y]',
@@ -1059,9 +1095,17 @@ export default function Chat() {
     <PageShell bleed fixed>
       <div className="relative flex h-full flex-col overflow-hidden overscroll-none [touch-action:pan-y]">
         {/* ── CHAT WALLPAPERS ────────────────────────────────────────── */}
+        {/* z-0 (DOM-order-first), not negative z-index: iOS Safari has a
+            documented bug where a position:absolute + negative-z-index
+            sibling of an actively-scrolling overflow-y-auto container gets
+            excluded from the compositing layer mid-scroll and flickers/
+            flashes to the parent's default background. Painting this layer
+            first in normal DOM order and giving the scroll view its own
+            explicit stacking context (relative z-10, below) keeps both
+            layers in the same compositing pass instead. */}
         {chatWallpaper === 'doodle' && (
           <div
-            className="absolute inset-0 -z-10 bg-[#0b141a]"
+            className="absolute inset-0 z-0 bg-[#0b141a]"
             style={{
               backgroundImage: `radial-gradient(#1f2c34 1px, transparent 1px)`,
               backgroundSize: '24px 24px',
@@ -1069,15 +1113,15 @@ export default function Chat() {
           />
         )}
         {chatWallpaper === 'velvet' && (
-          <div className="absolute inset-0 -z-10 bg-gradient-to-b from-[#2a0b1c] via-[#150512] to-[#080208]" />
+          <div className="absolute inset-0 z-0 bg-gradient-to-b from-[#2a0b1c] via-[#150512] to-[#080208]" />
         )}
         {chatWallpaper === 'emerald' && (
-          <div className="absolute inset-0 -z-10 bg-gradient-to-b from-[#082a20] via-[#051a14] to-[#020b08]" />
+          <div className="absolute inset-0 z-0 bg-gradient-to-b from-[#082a20] via-[#051a14] to-[#020b08]" />
         )}
-        {chatWallpaper === 'dark' && <div className="absolute inset-0 -z-10 bg-black" />}
+        {chatWallpaper === 'dark' && <div className="absolute inset-0 z-0 bg-black" />}
         {chatWallpaper === 'custom-image' && customImageUrl && (
           <div
-            className="absolute inset-0 -z-10 bg-cover bg-center"
+            className="absolute inset-0 z-0 bg-cover bg-center"
             style={{ backgroundImage: `url(${customImageUrl})` }}
           >
             <div
@@ -1093,7 +1137,7 @@ export default function Chat() {
             muted
             playsInline
             src={customVideoUrl}
-            className="absolute inset-0 -z-10 h-full w-full object-cover"
+            className="absolute inset-0 z-0 h-full w-full object-cover"
             style={{ opacity: chatWallpaperBrightness / 100 }}
           />
         )}
@@ -1188,7 +1232,7 @@ export default function Chat() {
         </div>
 
         {/* ── CHAT MESSAGES SCROLL VIEW ─────────────────────────────── */}
-        <div className="flex-1 overflow-y-auto overscroll-contain px-4 py-4 [scrollbar-width:none] [touch-action:pan-y]">
+        <div className="relative z-10 flex-1 overflow-y-auto overscroll-contain px-4 py-4 [scrollbar-width:none] [touch-action:pan-y]">
           {messages.length === 0 && (
             <div className="flex h-full flex-col items-center justify-center gap-2 text-center text-warmwhite/70">
               <span className="text-4xl">💬</span>
