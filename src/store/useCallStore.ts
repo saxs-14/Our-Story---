@@ -8,7 +8,12 @@ import { logCallEvent } from '@/store/useChatStore';
 
 const RING_TIMEOUT_MS = 45_000;
 
-export type CallState = 'idle' | 'calling' | 'incoming' | 'connected' | 'ended';
+// 'connecting': the callee has tapped Accept and local media is up, but the
+// actual WebRTC handshake hasn't completed yet — distinct from 'connected'
+// (see webrtc.ts's onconnectionstatechange, now the only thing that fires
+// onCallConnected) so the UI doesn't claim a connected call before one
+// exists.
+export type CallState = 'idle' | 'calling' | 'incoming' | 'connecting' | 'connected' | 'ended';
 export type CallType = 'voice' | 'video';
 
 interface CallStore {
@@ -24,6 +29,11 @@ interface CallStore {
   isVideoOff: boolean;
   isReconnecting: boolean;
   durationSeconds: number;
+  /** Set when getUserMedia genuinely failed for this call (permission
+   *  denied, no device) — surfaced as a dismissible banner in CallModal so
+   *  a silent "can't be heard/seen" isn't mistaken for a working call. */
+  mediaError: string | null;
+  clearMediaError: () => void;
 
   startCall: (type: CallType, callerId: PersonId) => Promise<void>;
   answerCall: () => Promise<void>;
@@ -52,6 +62,8 @@ export const useCallStore = create<CallStore>((set, get) => {
   };
 
   webrtc.onReconnecting = (isReconnecting) => set({ isReconnecting });
+
+  webrtc.onMediaError = (message) => set({ mediaError: message });
 
   webrtc.onCallConnected = () => {
     clearRingTimeout();
@@ -127,6 +139,8 @@ export const useCallStore = create<CallStore>((set, get) => {
     isMuted: false,
     isVideoOff: false,
     durationSeconds: 0,
+    mediaError: null,
+    clearMediaError: () => set({ mediaError: null }),
 
     startCall: async (type: CallType, callerId: PersonId) => {
       const calleeId = partnerOf(callerId);
@@ -141,6 +155,7 @@ export const useCallStore = create<CallStore>((set, get) => {
         durationSeconds: 0,
         isMuted: false,
         isVideoOff: false,
+        mediaError: null,
       });
 
       try {
@@ -169,7 +184,11 @@ export const useCallStore = create<CallStore>((set, get) => {
 
       try {
         const stream = await webrtc.getLocalStream(callType);
-        set({ localStream: stream, callState: 'connected' });
+        // 'connecting', not 'connected' — the handshake hasn't happened
+        // yet. webrtc.onCallConnected (bound above) flips this to
+        // 'connected' for real once the peer connection genuinely
+        // completes (see webrtc.ts's onconnectionstatechange).
+        set({ localStream: stream, callState: 'connecting', mediaError: null });
         await webrtc.answerCall(callId, callType);
       } catch (err) {
         console.error('Answering call failed:', err);

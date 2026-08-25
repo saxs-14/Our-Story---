@@ -23,6 +23,8 @@ export function CallModal() {
     isVideoOff,
     isReconnecting,
     durationSeconds,
+    mediaError,
+    clearMediaError,
     answerCall,
     rejectCall,
     endCall,
@@ -123,6 +125,8 @@ export function CallModal() {
               ? formatDuration(durationSeconds)
               : callState === 'incoming'
               ? 'Incoming call…'
+              : callState === 'connecting'
+              ? 'Connecting…'
               : 'Calling…'}
           </div>
         </div>
@@ -139,6 +143,25 @@ export function CallModal() {
             >
               Reconnecting…
             </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* getUserMedia genuinely failed (permission denied, no device) —
+            the call still proceeds with no local track rather than crashing,
+            but that means silence/black-screen on the other end with no
+            visible reason unless this banner says so. */}
+        <AnimatePresence>
+          {mediaError && (
+            <motion.button
+              type="button"
+              onClick={clearMediaError}
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              className="absolute left-1/2 top-28 z-20 max-w-[calc(100%-3rem)] -translate-x-1/2 rounded-2xl bg-red-500/90 px-4 py-2 text-center text-xs font-medium text-white shadow-lg"
+            >
+              {mediaError}
+            </motion.button>
           )}
         </AnimatePresence>
 
@@ -182,6 +205,8 @@ export function CallModal() {
                 ? 'Connected ♥'
                 : callState === 'incoming'
                 ? 'wants to talk to you'
+                : callState === 'connecting'
+                ? 'Connecting…'
                 : 'Ringing…'}
             </p>
           </div>

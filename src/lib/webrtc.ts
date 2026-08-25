@@ -18,11 +18,39 @@ import {
 import { db, FIREBASE_CONFIGURED } from '@/lib/firebase';
 import type { PersonId } from '@/store/useAuthStore';
 
+// STUN alone can only establish a direct peer-to-peer connection when at
+// least one side is behind an easy (full-cone/restricted) NAT — it cannot
+// get through symmetric NAT, which is exactly what most mobile-data/carrier
+// connections use (very common on South African mobile networks). Without a
+// relay fallback, two phones both on mobile data could complete the SDP
+// handshake (the app would say "Connected") while zero actual audio/video
+// ever flows. The Open Relay Project (metered.ca) publishes these TURN
+// credentials publicly and for free, specifically for cases like this one —
+// they're not a secret to protect, they're a shared community relay. It's a
+// best-effort free service (rate/bandwidth limited, no SLA), not a
+// replacement for a dedicated TURN account if call volume ever grows enough
+// to need one, but it's a real, working fallback where today there was none.
 const RTC_CONFIG: RTCConfiguration = {
   iceServers: [
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:stun1.l.google.com:19302' },
     { urls: 'stun:stun2.l.google.com:19302' },
+    { urls: 'stun:openrelay.metered.ca:80' },
+    {
+      urls: 'turn:openrelay.metered.ca:80',
+      username: 'openrelayproject',
+      credential: 'openrelayproject',
+    },
+    {
+      urls: 'turn:openrelay.metered.ca:443',
+      username: 'openrelayproject',
+      credential: 'openrelayproject',
+    },
+    {
+      urls: 'turn:openrelay.metered.ca:443?transport=tcp',
+      username: 'openrelayproject',
+      credential: 'openrelayproject',
+    },
   ],
   iceCandidatePoolSize: 10,
 };
@@ -47,11 +75,26 @@ export class WebRTCService {
   private callUnsub: Unsubscribe | null = null;
   private candidateUnsub: Unsubscribe | null = null;
   private reconnectTimer: number | null = null;
+  // ICE candidates from the other side can arrive over Firestore before
+  // this side has finished processing setRemoteDescription — two
+  // independent onSnapshot listeners (one for the SDP answer/offer, one for
+  // candidates) with no ordering guarantee between them. addIceCandidate()
+  // before a remote description exists is unreliable across browsers
+  // (Safari in particular has a real history of rejecting or silently
+  // dropping early candidates). Queue anything that arrives too early and
+  // flush it right after setRemoteDescription succeeds.
+  private pendingCandidates: RTCIceCandidateInit[] = [];
+  private hasConnectedOnce = false;
 
   public onRemoteStream?: (stream: MediaStream) => void;
   public onCallEnded?: () => void;
   public onCallConnected?: () => void;
   public onReconnecting?: (reconnecting: boolean) => void;
+  /** Fired when getUserMedia genuinely fails (permission denied, no device) —
+   *  the call still proceeds with an empty stream so it doesn't crash, but
+   *  the UI needs to tell the user why they can't be seen/heard instead of
+   *  failing silently. */
+  public onMediaError?: (message: string) => void;
 
   /** Initialize local audio / video stream */
   public async getLocalStream(type: 'voice' | 'video'): Promise<MediaStream> {
@@ -81,8 +124,15 @@ export class WebRTCService {
       this.localStream = stream;
       return stream;
     } catch (err) {
-      console.warn('Could not access real media devices, falling back to simulated stream:', err);
-      // Fallback: create empty media stream so UI flows seamlessly
+      console.warn('Could not access real media devices, falling back to an empty stream:', err);
+      const message =
+        err instanceof DOMException && (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError')
+          ? "Microphone/camera access was denied — the other person won't be able to see or hear you."
+          : "Couldn't access your microphone/camera — the other person won't be able to see or hear you.";
+      this.onMediaError?.(message);
+      // Fallback: empty stream so the call attempt doesn't crash/throw —
+      // the other side still gets a ring and can talk even if this side
+      // can't be heard, rather than the whole call failing outright.
       const fallbackStream = new MediaStream();
       this.localStream = fallbackStream;
       return fallbackStream;
@@ -153,7 +203,13 @@ export class WebRTCService {
         if (data.answer && !this.pc?.currentRemoteDescription) {
           const answerDescription = new RTCSessionDescription(data.answer);
           await this.pc?.setRemoteDescription(answerDescription);
-          this.onCallConnected?.();
+          // Actual "connected" is now reported by onconnectionstatechange
+          // once ICE/DTLS genuinely completes (see createPeerConnection) —
+          // this call used to fire here immediately on SDP exchange alone,
+          // which meant the UI could say "Connected" while media never
+          // actually flowed (e.g. NAT traversal failing with no TURN
+          // fallback — see RTC_CONFIG).
+          await this.flushPendingCandidates();
         }
       });
 
@@ -162,8 +218,7 @@ export class WebRTCService {
       this.candidateUnsub = onSnapshot(answerCandidatesRef, (snapshot) => {
         snapshot.docChanges().forEach((change) => {
           if (change.type === 'added') {
-            const candidate = new RTCIceCandidate(change.doc.data());
-            void this.pc?.addIceCandidate(candidate);
+            void this.addIceCandidateSafely(change.doc.data() as RTCIceCandidateInit);
           }
         });
       });
@@ -205,6 +260,7 @@ export class WebRTCService {
       // Set Remote Description (Caller's Offer)
       const offerDescription = new RTCSessionDescription(callData.offer);
       await this.pc!.setRemoteDescription(offerDescription);
+      await this.flushPendingCandidates();
 
       // Create Local Answer
       const answerDescription = await this.pc!.createAnswer();
@@ -218,15 +274,19 @@ export class WebRTCService {
         status: 'connected',
       });
 
-      this.onCallConnected?.();
+      // Real "connected" now comes from onconnectionstatechange (see
+      // createPeerConnection) once ICE/DTLS genuinely completes, not from
+      // reaching this point in the signaling exchange — this line used to
+      // fire immediately after sending the answer, so the UI could say
+      // "Connected" the instant you tapped Accept, before any actual
+      // media handshake happened.
 
       // Listen for Offer ICE candidates from caller
       const offerCandidatesRef = collection(db, 'calls', callId, 'offerCandidates');
       this.candidateUnsub = onSnapshot(offerCandidatesRef, (snapshot) => {
         snapshot.docChanges().forEach((change) => {
           if (change.type === 'added') {
-            const candidate = new RTCIceCandidate(change.doc.data());
-            void this.pc?.addIceCandidate(candidate);
+            void this.addIceCandidateSafely(change.doc.data() as RTCIceCandidateInit);
           }
         });
       });
@@ -327,6 +387,30 @@ export class WebRTCService {
     this.pc.onconnectionstatechange = () => {
       const state = this.pc?.connectionState;
 
+      // The single source of truth for "actually connected" — ICE/DTLS has
+      // genuinely completed, meaning media really can flow. Previously
+      // onCallConnected was invoked manually right after the SDP
+      // offer/answer exchange (and, for whoever answered, even earlier —
+      // the instant they tapped Accept) — the UI could say "Connected" and
+      // start counting a timer while the underlying connection had not
+      // actually succeeded, e.g. NAT traversal failing with no TURN
+      // fallback (see RTC_CONFIG). onCallConnected only fires once per call
+      // (hasConnectedOnce) — a later 'connected' after a reconnect blip just
+      // clears the "Reconnecting…" banner below, it doesn't need to redo
+      // the initial-connect side effects (starting the duration timer etc).
+      if (state === 'connected') {
+        if (this.reconnectTimer) {
+          clearTimeout(this.reconnectTimer);
+          this.reconnectTimer = null;
+        }
+        this.onReconnecting?.(false);
+        if (!this.hasConnectedOnce) {
+          this.hasConnectedOnce = true;
+          this.onCallConnected?.();
+        }
+        return;
+      }
+
       // 'failed'/'closed' are terminal — no point waiting.
       if (state === 'failed' || state === 'closed') {
         this.endCall();
@@ -352,21 +436,41 @@ export class WebRTCService {
         } catch {
           /* not supported everywhere — the timeout fallback still applies */
         }
-        return;
-      }
-
-      // Recovered (back to 'connected') — cancel any pending grace-period end.
-      if (state === 'connected' && this.reconnectTimer) {
-        clearTimeout(this.reconnectTimer);
-        this.reconnectTimer = null;
-        this.onReconnecting?.(false);
       }
     };
 
     return this.pc;
   }
 
+  /** Add an ICE candidate if the remote description is already set;
+   *  otherwise queue it for flushPendingCandidates() to apply once it is. */
+  private async addIceCandidateSafely(candidate: RTCIceCandidateInit): Promise<void> {
+    if (this.pc?.remoteDescription) {
+      try {
+        await this.pc.addIceCandidate(new RTCIceCandidate(candidate));
+      } catch (err) {
+        console.warn('Failed to add ICE candidate:', err);
+      }
+    } else {
+      this.pendingCandidates.push(candidate);
+    }
+  }
+
+  private async flushPendingCandidates(): Promise<void> {
+    const queued = this.pendingCandidates;
+    this.pendingCandidates = [];
+    for (const candidate of queued) {
+      try {
+        await this.pc?.addIceCandidate(new RTCIceCandidate(candidate));
+      } catch (err) {
+        console.warn('Failed to add queued ICE candidate:', err);
+      }
+    }
+  }
+
   public cleanup(): void {
+    this.pendingCandidates = [];
+    this.hasConnectedOnce = false;
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
