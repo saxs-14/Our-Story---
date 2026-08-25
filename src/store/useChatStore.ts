@@ -113,6 +113,27 @@ const MESSAGES_COLLECTION = 'messages';
 const TYPING_COLLECTION = 'typing';
 const MESSAGES_LIMIT = 250;
 
+/**
+ * Firestore rejects any write containing an explicit `undefined` field
+ * value (throws client-side, before the write even reaches the network) —
+ * `ReplyPreview.mediaType` is optional, so replying to a plain text message
+ * (no mediaType at all) put a literal `undefined` into replyTo.mediaType,
+ * making the send fail instantly and every retry fail identically forever,
+ * since retryFailedMessage resends the exact same replyTo object. Rebuilding
+ * the field explicitly here guarantees no property is ever undefined,
+ * regardless of what shape the caller's ReplyPreview happens to have.
+ */
+function sanitizeReplyTo(replyTo: ReplyPreview | undefined | null) {
+  if (!replyTo) return null;
+  return {
+    id: replyTo.id,
+    text: replyTo.text,
+    senderId: replyTo.senderId,
+    senderName: replyTo.senderName,
+    mediaType: replyTo.mediaType ?? null,
+  };
+}
+
 let typingTimeout: number | null = null;
 
 /** Writes a call-summary system message (missed or completed) into the chat, WhatsApp-style. */
@@ -243,7 +264,7 @@ export const useChatStore = create<ChatState>()(
               senderId,
               senderName,
               read: false,
-              replyTo: replyTo ?? null,
+              replyTo: sanitizeReplyTo(replyTo),
               timestamp: serverTimestamp(),
             });
             set((s) => ({ messages: s.messages.filter((m) => m.id !== tmpId) }));
@@ -331,7 +352,7 @@ export const useChatStore = create<ChatState>()(
             mediaType,
             audioDuration: audioDuration || null,
             read: false,
-            replyTo: replyTo ?? null,
+            replyTo: sanitizeReplyTo(replyTo),
             timestamp: serverTimestamp(),
           };
           if (messageRef) {
