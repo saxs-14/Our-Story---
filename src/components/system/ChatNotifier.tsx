@@ -3,12 +3,22 @@
  *
  * Mounted once (logged-in branch of App) so the Firestore chat listener stays
  * alive on every page — not just the Chat page. When the partner sends a new
- * message while the app is open/backgrounded, it fires:
- *   • a system notification (Android app + supported browsers), and
- *   • an in-app banner (works everywhere, incl. iPhone PWA), and
- *   • a soft sound + haptic.
+ * message while the app is open, it fires an in-app banner (works
+ * everywhere, incl. iPhone PWA) plus a soft sound + haptic.
  * It ignores your own messages, the history loaded on launch, and stays quiet
  * while you're already on the Chat page.
+ *
+ * Deliberately does NOT also fire a system notification here — that's the
+ * Cloud Function push's job (onNewMessage in functions/index.js), which
+ * already skips sending when presence says the recipient is online, on the
+ * assumption this component's toast covers that case. This component's own
+ * live Firestore listener used to ALSO fire a system notification, racing
+ * the server push: presence-online staleness and "is this JS context still
+ * alive" are two different signals that don't perfectly coincide (especially
+ * on iOS PWA, where a backgrounded tab's JS can outlive the presence
+ * heartbeat's own staleness window) — in that gap both fired, producing a
+ * second, uncoordinated notification for the same message. Removed to make
+ * the server push the single source of truth for system-level notifications.
  */
 import { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -20,7 +30,7 @@ import { useAppStore } from '@/store/useAppStore';
 import { useSound } from '@/hooks/useSound';
 import { haptic } from '@/lib/haptics';
 import { ChatIcon } from '@/components/icons';
-import { showMessageNotification, registerNotificationTap } from '@/lib/notify';
+import { registerNotificationTap } from '@/lib/notify';
 import { enablePushNotifications, registerPushTap } from '@/lib/push';
 
 function previewOf(text: string, mediaType?: 'image' | 'video' | 'audio'): string {
@@ -105,7 +115,6 @@ export function ChatNotifier() {
     const name = last.senderName || personById(partnerOf(userId)).nickname;
     const text = previewOf(last.text, last.mediaType);
 
-    void showMessageNotification(name, text);
     if (soundOn) playSound('chime');
     haptic('soft');
     setToast({ name, text });

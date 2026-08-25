@@ -92,12 +92,33 @@ if (firebaseConfig.apiKey && firebaseConfig.projectId) {
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const url = (event.notification.data?.url as string) || '/';
+  const path = (event.notification.data?.url as string) || '/';
+  // The app uses HashRouter, which only ever reads the URL's #fragment — a
+  // bare path like "/chat" opens with an empty hash and lands on Home, not
+  // Chat. Every navigation here needs the #-prefixed form.
+  const hashUrl = `${self.location.origin}/#${path}`;
   event.waitUntil(
-    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientsArr) => {
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(async (clientsArr) => {
       const existing = clientsArr.find((c) => 'focus' in c) as WindowClient | undefined;
-      if (existing) return existing.focus();
-      return self.clients.openWindow(url);
+      if (existing) {
+        // Previously only called .focus() here — that brings an
+        // already-open tab to the front but never navigates it, so tapping
+        // a notification while the app was merely backgrounded (the common
+        // case — most people don't force-quit a PWA) left the user on
+        // whatever page they'd last been viewing instead of Chat.
+        await existing.focus();
+        if ('navigate' in existing) {
+          try {
+            await existing.navigate(hashUrl);
+          } catch {
+            // Same-origin navigate() can be rejected by some engines —
+            // the tab is still focused at this point, just not routed;
+            // better than throwing and leaving notificationclick unhandled.
+          }
+        }
+        return;
+      }
+      return self.clients.openWindow(hashUrl);
     }),
   );
 });

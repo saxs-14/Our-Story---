@@ -1,9 +1,13 @@
 /**
- * Cross-platform notification helper for chat messages and garden watering reminders.
+ * Cross-platform notification helper for garden watering reminders — a
+ * client-only feature with no server-push equivalent, so it's scheduled
+ * straight from here.
  *
  * • Android app (Capacitor)  → @capacitor/local-notifications (system shade, works when locked/outside app)
  * • Desktop / Android browser → Web Notification API + Service Worker
- * • In-app romantic toasts   → Fallback and immediate celebration
+ *
+ * Chat message notifications are NOT handled here — see ChatNotifier.tsx's
+ * header comment for why that's the Cloud Function push's job alone.
  */
 import { Capacitor } from '@capacitor/core';
 
@@ -11,7 +15,6 @@ const isNative = () => Capacitor.isNativePlatform();
 const hasWebNotif = () => typeof window !== 'undefined' && 'Notification' in window;
 
 let tapRegistered = false;
-let notifId = 1;
 
 /** Ask the user to allow notifications. Returns true if granted. */
 export async function requestNotificationPermission(): Promise<boolean> {
@@ -34,49 +37,6 @@ export async function requestNotificationPermission(): Promise<boolean> {
     }
   }
   return false;
-}
-
-/** Post a notification for an incoming chat message. */
-export async function showMessageNotification(title: string, body: string): Promise<void> {
-  if (isNative()) {
-    try {
-      const { LocalNotifications } = await import('@capacitor/local-notifications');
-      const perm = await LocalNotifications.checkPermissions();
-      if (perm.display !== 'granted') return;
-      await LocalNotifications.schedule({
-        notifications: [
-          {
-            id: notifId++,
-            title,
-            body,
-            extra: { route: '/chat' },
-          },
-        ],
-      });
-    } catch {
-      /* ignore */
-    }
-    return;
-  }
-
-  if (hasWebNotif() && Notification.permission === 'granted') {
-    try {
-      const icon = `${import.meta.env.BASE_URL}icons/icon-192.png`;
-      const n = new Notification(title, {
-        body,
-        icon,
-        tag: 'our-story-chat',
-        renotify: true,
-      } as NotificationOptions);
-      n.onclick = () => {
-        window.focus?.();
-        window.location.hash = '#/chat';
-        n.close();
-      };
-    } catch {
-      /* ignore */
-    }
-  }
 }
 
 /** Post or schedule a garden reminder notification (e.g. "Your garden needs water 🌱") */
