@@ -23,6 +23,7 @@ import { MusicPlayer } from '@/components/system/MusicPlayer';
 import { ChatNotifier } from '@/components/system/ChatNotifier';
 import { NotificationPrompt } from '@/components/system/NotificationPrompt';
 import { GardenNotifier } from '@/components/system/GardenNotifier';
+import { OfflineIndicator } from '@/components/system/OfflineIndicator';
 import { CallModal } from '@/components/call/CallModal';
 import { HeartFilledIcon } from '@/components/icons';
 
@@ -124,6 +125,7 @@ export default function App() {
 
   return (
     <>
+      <OfflineIndicator />
       <AuroraBackground />
       {ambientOn && !reduce && (
         <div aria-hidden className="pointer-events-none fixed inset-0 -z-[5] opacity-50">
