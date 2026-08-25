@@ -20,6 +20,7 @@ import { useSound } from '@/hooks/useSound';
 import { useLiveWeather } from '@/hooks/useLiveWeather';
 import { Portraits } from '@/components/home/Portraits';
 import { DailyStatus } from '@/components/home/DailyStatus';
+import { LocalErrorBoundary } from '@/components/system/LocalErrorBoundary';
 
 const CrystalHeart = lazy(() => import('@/components/three/CrystalHeart'));
 
@@ -97,9 +98,11 @@ export default function Home({ onReplayIntro }: { onReplayIntro?: () => void }) 
               'radial-gradient(circle at 50% 46%, rgba(247,217,217,0.6), rgba(212,175,122,0.2) 42%, transparent 70%)',
           }}
         />
-        <Suspense fallback={<HeartFallback />}>
-          <CrystalHeart />
-        </Suspense>
+        <LocalErrorBoundary fallback={<HeartFallback />}>
+          <Suspense fallback={<HeartFallback />}>
+            <CrystalHeart />
+          </Suspense>
+        </LocalErrorBoundary>
       </div>
 
       {/* Headline + live counter */}
