@@ -18,39 +18,16 @@ import {
 import { db, FIREBASE_CONFIGURED } from '@/lib/firebase';
 import type { PersonId } from '@/store/useAuthStore';
 
-// STUN alone can only establish a direct peer-to-peer connection when at
-// least one side is behind an easy (full-cone/restricted) NAT — it cannot
-// get through symmetric NAT, which is exactly what most mobile-data/carrier
-// connections use (very common on South African mobile networks). Without a
-// relay fallback, two phones both on mobile data could complete the SDP
-// handshake (the app would say "Connected") while zero actual audio/video
-// ever flows. The Open Relay Project (metered.ca) publishes these TURN
-// credentials publicly and for free, specifically for cases like this one —
-// they're not a secret to protect, they're a shared community relay. It's a
-// best-effort free service (rate/bandwidth limited, no SLA), not a
-// replacement for a dedicated TURN account if call volume ever grows enough
-// to need one, but it's a real, working fallback where today there was none.
+// STUN-only, by explicit choice — no third-party TURN relay. This means a
+// call between two phones both behind symmetric/carrier-grade NAT (common
+// on mobile data) can fail to establish a direct connection with no relay
+// fallback available. Accepted tradeoff: no dependency on a shared
+// third-party service.
 const RTC_CONFIG: RTCConfiguration = {
   iceServers: [
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:stun1.l.google.com:19302' },
     { urls: 'stun:stun2.l.google.com:19302' },
-    { urls: 'stun:openrelay.metered.ca:80' },
-    {
-      urls: 'turn:openrelay.metered.ca:80',
-      username: 'openrelayproject',
-      credential: 'openrelayproject',
-    },
-    {
-      urls: 'turn:openrelay.metered.ca:443',
-      username: 'openrelayproject',
-      credential: 'openrelayproject',
-    },
-    {
-      urls: 'turn:openrelay.metered.ca:443?transport=tcp',
-      username: 'openrelayproject',
-      credential: 'openrelayproject',
-    },
   ],
   iceCandidatePoolSize: 10,
 };
@@ -91,12 +68,13 @@ export class WebRTCService {
   public onCallConnected?: () => void;
   public onReconnecting?: (reconnecting: boolean) => void;
   /** Fired when getUserMedia genuinely fails (permission denied, no device) —
-   *  the call still proceeds with an empty stream so it doesn't crash, but
-   *  the UI needs to tell the user why they can't be seen/heard instead of
-   *  failing silently. */
+   *  the call attempt is aborted (see getLocalStream), this just carries the
+   *  reason so the UI can tell the user why instead of failing silently. */
   public onMediaError?: (message: string) => void;
 
-  /** Initialize local audio / video stream */
+  /** Initialize local audio / video stream. Throws if it can't — no
+   *  fallback stream, no degraded call. A call with no real audio/video on
+   *  one end is worse than no call at all. */
   public async getLocalStream(type: 'voice' | 'video'): Promise<MediaStream> {
     // If a previous stream is still open, ensure all hardware tracks are stopped first
     if (this.localStream) {
@@ -110,32 +88,26 @@ export class WebRTCService {
       this.localStream = null;
     }
 
-    try {
-      const constraints: MediaStreamConstraints = {
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-        },
-        video: type === 'video' ? { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } } : false,
-      };
+    const constraints: MediaStreamConstraints = {
+      audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true,
+      },
+      video: type === 'video' ? { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } } : false,
+    };
 
+    try {
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
       this.localStream = stream;
       return stream;
     } catch (err) {
-      console.warn('Could not access real media devices, falling back to an empty stream:', err);
       const message =
         err instanceof DOMException && (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError')
-          ? "Microphone/camera access was denied — the other person won't be able to see or hear you."
-          : "Couldn't access your microphone/camera — the other person won't be able to see or hear you.";
+          ? 'Microphone/camera access was denied.'
+          : "Couldn't access your microphone/camera.";
       this.onMediaError?.(message);
-      // Fallback: empty stream so the call attempt doesn't crash/throw —
-      // the other side still gets a ring and can talk even if this side
-      // can't be heard, rather than the whole call failing outright.
-      const fallbackStream = new MediaStream();
-      this.localStream = fallbackStream;
-      return fallbackStream;
+      throw err;
     }
   }
 

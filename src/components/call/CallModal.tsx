@@ -83,7 +83,32 @@ export function CallModal() {
     }
   }, [callState, playSound]);
 
-  if (callState === 'idle') return null;
+  if (callState === 'idle') {
+    // getLocalStream() throws rather than degrading into a fake stream (see
+    // webrtc.ts) — the call attempt aborts back to idle immediately, so
+    // this is the only place left to actually show the reason. A plain,
+    // minimal toast rather than the full call chrome, since there's no
+    // call in progress to show it inside of.
+    if (!mediaError) return null;
+    return (
+      <AnimatePresence>
+        <motion.div
+          className="fixed inset-x-4 top-[calc(env(safe-area-inset-top)+1rem)] z-[120] flex justify-center"
+          initial={{ opacity: 0, y: -12 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -12 }}
+        >
+          <button
+            type="button"
+            onClick={clearMediaError}
+            className="glass-strong max-w-md rounded-2xl bg-red-500/90 px-4 py-3 text-center text-sm font-medium text-white shadow-lg"
+          >
+            {mediaError}
+          </button>
+        </motion.div>
+      </AnimatePresence>
+    );
+  }
 
   return (
     <AnimatePresence>
@@ -143,25 +168,6 @@ export function CallModal() {
             >
               Reconnecting…
             </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* getUserMedia genuinely failed (permission denied, no device) —
-            the call still proceeds with no local track rather than crashing,
-            but that means silence/black-screen on the other end with no
-            visible reason unless this banner says so. */}
-        <AnimatePresence>
-          {mediaError && (
-            <motion.button
-              type="button"
-              onClick={clearMediaError}
-              initial={{ opacity: 0, y: -8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              className="absolute left-1/2 top-28 z-20 max-w-[calc(100%-3rem)] -translate-x-1/2 rounded-2xl bg-red-500/90 px-4 py-2 text-center text-xs font-medium text-white shadow-lg"
-            >
-              {mediaError}
-            </motion.button>
           )}
         </AnimatePresence>
 

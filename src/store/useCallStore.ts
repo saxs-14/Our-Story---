@@ -84,10 +84,15 @@ export const useCallStore = create<CallStore>((set, get) => {
     // Only the caller's device logs the outcome, so a completed/missed call
     // doesn't get written twice (once from each side). Skip logging if the
     // call was already idle/reset when this fired (avoids double-logging).
-    const { callState, callerId, calleeId, callerName, callType, durationSeconds } = get();
+    const { callState, callId, callerId, calleeId, callerName, callType, durationSeconds } = get();
     const localUserId = useAuthStore.getState().userId;
     const wasActive = callState === 'connected' || callState === 'calling' || callState === 'incoming';
-    if (callerId && calleeId && localUserId === callerId && wasActive) {
+    // callId is only set once webrtc.makeCall() actually wrote the offer to
+    // Firestore — without it, getLocalStream() failed (e.g. mic/camera
+    // permission denied) before the call was ever offered to the other
+    // person at all. That's a local failure to attempt a call, not a real
+    // missed call, and shouldn't be logged as one.
+    if (callId && callerId && calleeId && localUserId === callerId && wasActive) {
       const outcome = callState === 'connected' ? 'completed' : 'missed';
       void logCallEvent(callerId, callerName, callType, outcome, durationSeconds);
     }
@@ -192,6 +197,12 @@ export const useCallStore = create<CallStore>((set, get) => {
         await webrtc.answerCall(callId, callType);
       } catch (err) {
         console.error('Answering call failed:', err);
+        // Tell the caller via Firestore (status: 'rejected') instead of
+        // just resetting local state — otherwise a failed answer attempt
+        // (e.g. mic/camera permission denied) leaves the caller's device
+        // ringing until the full 45s timeout with no idea the callee ever
+        // tried and failed to pick up.
+        await webrtc.rejectCall(callId).catch(() => {});
         webrtc.onCallEnded?.();
       }
     },
