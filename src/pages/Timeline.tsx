@@ -84,11 +84,15 @@ function MediaTile({
     >
       {type === 'video' ? (
         <>
-          <video src={url} className="h-full w-full object-cover" preload="metadata" />
-          <span className="absolute inset-0 flex items-center justify-center bg-black/20">
-            <span className="flex h-10 w-10 items-center justify-center rounded-full bg-black/50 text-xl text-warmwhite">
-              ▶
-            </span>
+          {/* Muted autoplay is allowed everywhere, including iOS Safari —
+              unlike unmuted autoplay (blocked, see MediaViewerModal's own
+              comment), this is the one universally-reliable exception. The
+              full-size viewer this opens into stays tap-to-play-with-sound
+              on purpose; it's shared with Chat, where that already fixed a
+              real black-screen bug. */}
+          <video src={url} className="h-full w-full object-cover" autoPlay muted loop playsInline preload="auto" />
+          <span className="absolute bottom-1.5 right-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-black/50 text-xs text-warmwhite">
+            🔇
           </span>
         </>
       ) : (
