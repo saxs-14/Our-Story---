@@ -9,7 +9,8 @@ import { CloseIcon } from '@/components/icons';
 import { MEMORIES, type MemoryType } from '@/data/memories';
 import { useContentStore } from '@/store/useContentStore';
 import { useAuthStore, personById, type PersonId } from '@/store/useAuthStore';
-import { useMediaUrl } from '@/hooks/useMediaUrl';
+import { useMediaUrl, useMediaKind } from '@/hooks/useMediaUrl';
+import { MediaViewerModal } from '@/components/ui/MediaViewerModal';
 import { formatLongDate } from '@/lib/time';
 import { cn } from '@/lib/cn';
 import { haptic } from '@/lib/haptics';
@@ -52,32 +53,96 @@ const COLOR: Record<Bucket, string> = {
 
 const EMOJIS = ['❤️', '❄️', '🔥', '🥹', '🌹', '✨', '🎂', '🥂', '✈️', '💍', '📸', '🎵', '🌙', '🌱'];
 
-function MediaThumbs({ ids, urls }: { ids?: string[]; urls?: string[] }) {
-  const allIds = ids || [];
-  const allUrls = urls || [];
+/** Sniffs image vs. video from a cloud Storage URL's filename extension —
+ *  the only signal available for a `mediaUrls` entry, since (unlike a local
+ *  `mediaIds` entry) there's no IndexedDB record carrying a real MIME type
+ *  alongside it. */
+function kindFromUrl(url: string): 'image' | 'video' {
+  return /\.(mp4|mov|webm|m4v|avi|mkv)(\?|$)/i.test(url) ? 'video' : 'image';
+}
 
+function MediaTile({
+  url,
+  type,
+  large,
+  onOpen,
+}: {
+  url: string;
+  type: 'image' | 'video';
+  large: boolean;
+  onOpen: () => void;
+}) {
   return (
-    <div className="mt-3 flex gap-2.5 overflow-x-auto pb-1">
-      {allIds.map((id) => (
-        <Thumb key={id} id={id} />
-      ))}
-      {allUrls.map((url, i) => (
-        <img
-          key={i}
-          src={url}
-          alt="Memory attachment"
-          className="h-24 w-24 shrink-0 rounded-2xl object-cover shadow-md"
-          loading="lazy"
-        />
-      ))}
-    </div>
+    <button
+      type="button"
+      onClick={onOpen}
+      aria-label={type === 'video' ? 'View video' : 'View photo'}
+      className={cn(
+        'tap relative shrink-0 overflow-hidden rounded-2xl shadow-md',
+        large ? 'h-64 w-full' : 'h-40 w-40',
+      )}
+    >
+      {type === 'video' ? (
+        <>
+          <video src={url} className="h-full w-full object-cover" preload="metadata" />
+          <span className="absolute inset-0 flex items-center justify-center bg-black/20">
+            <span className="flex h-10 w-10 items-center justify-center rounded-full bg-black/50 text-xl text-warmwhite">
+              ▶
+            </span>
+          </span>
+        </>
+      ) : (
+        <img src={url} alt="Memory attachment" className="h-full w-full object-cover" loading="lazy" />
+      )}
+    </button>
   );
 }
 
-function Thumb({ id }: { id: string }) {
+function IdThumb({
+  id,
+  large,
+  onOpen,
+}: {
+  id: string;
+  large: boolean;
+  onOpen: (v: { url: string; type: 'image' | 'video' }) => void;
+}) {
   const url = useMediaUrl(id);
+  const kind = useMediaKind(id);
   if (!url) return null;
-  return <img src={url} alt="" className="h-24 w-24 shrink-0 rounded-2xl object-cover shadow-md" loading="lazy" />;
+  const type = kind === 'video' ? 'video' : 'image';
+  return <MediaTile url={url} type={type} large={large} onOpen={() => onOpen({ url, type })} />;
+}
+
+/** Previously every attachment rendered as a fixed 96x96 <img> — too small
+ *  to actually see, with no way to view it larger, and videos (accepted by
+ *  the upload picker but never handled here) silently rendered as broken
+ *  images. Now: a single attachment shows large (matches the "large"
+ *  request), multiple show at a real "medium" size in a scroll row (up from
+ *  96px), videos get a real <video> + play affordance, and tapping any of
+ *  them opens the same full-size viewer Chat uses. */
+function MediaThumbs({ ids, urls }: { ids?: string[]; urls?: string[] }) {
+  const allIds = ids || [];
+  const allUrls = urls || [];
+  const large = allIds.length + allUrls.length === 1;
+  const [viewer, setViewer] = useState<{ url: string; type: 'image' | 'video' } | null>(null);
+
+  return (
+    <>
+      <div className={cn('mt-3 flex gap-2.5', !large && 'overflow-x-auto pb-1')}>
+        {allIds.map((id) => (
+          <IdThumb key={id} id={id} large={large} onOpen={setViewer} />
+        ))}
+        {allUrls.map((url, i) => {
+          const type = kindFromUrl(url);
+          return <MediaTile key={i} url={url} type={type} large={large} onOpen={() => setViewer({ url, type })} />;
+        })}
+      </div>
+      <AnimatePresence>
+        {viewer && <MediaViewerModal url={viewer.url} type={viewer.type} onClose={() => setViewer(null)} />}
+      </AnimatePresence>
+    </>
+  );
 }
 
 function ComposeMoment({ onClose }: { onClose: () => void }) {

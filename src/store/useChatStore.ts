@@ -28,6 +28,7 @@ import {
 import { db, storage, FIREBASE_CONFIGURED } from '@/lib/firebase';
 import type { PersonId } from '@/store/useAuthStore';
 import { partnerOf } from '@/store/useAuthStore';
+import { saveMedia, getMedia, getMediaURL, type MediaRecord } from '@/lib/idb';
 
 export interface ReplyPreview {
   id: string;
@@ -63,6 +64,19 @@ export interface ChatMessage {
    *  these were left indistinguishable from "still sending" forever, with
    *  no way to know they'd failed or to resend. See retryFailedMessage. */
   failed?: boolean;
+  /** IndexedDB id of a media message's locally-saved file. Set for every
+   *  media message from the moment it's picked/recorded (before any upload
+   *  attempt), so the photo/video/voice note is visible immediately even
+   *  fully offline, and so a queued or failed upload can be retried later
+   *  by re-reading the actual bytes from IndexedDB — the original File/Blob
+   *  object itself doesn't survive a page reload, only this id does (it's
+   *  part of the persisted messages array). */
+  localMediaId?: string;
+  /** A media message saved locally but not yet uploaded because the upload
+   *  attempt hit a network-shaped failure — distinct from `failed` (a real,
+   *  non-network rejection needing a manual retry tap). Retried
+   *  automatically on reconnect; see retryQueuedMedia. */
+  mediaQueued?: boolean;
 }
 
 export type PartnerActivity = 'typing' | 'recording' | null;
@@ -99,6 +113,10 @@ interface ChatState {
   /** Re-attempt a message previously marked failed=true — removes the
    *  failed stub and resends it as a fresh optimistic message. */
   retryFailedMessage: (id: string) => Promise<void>;
+  /** Re-attempt every mediaQueued=true message (saved locally, waiting for
+   *  connectivity). Called automatically on reconnect and on chat mount —
+   *  not normally something UI code needs to call directly. */
+  retryQueuedMedia: () => void;
   clearMediaError: () => void;
   /** Add reaction to a message */
   reactToMessage: (messageId: string, userId: PersonId, emoji: string) => Promise<void>;
@@ -135,6 +153,115 @@ function sanitizeReplyTo(replyTo: ReplyPreview | undefined | null) {
 }
 
 let typingTimeout: number | null = null;
+
+type SetChatState = (partial: Partial<ChatState> | ((s: ChatState) => Partial<ChatState>)) => void;
+
+/** IDs of messages currently being retried — guards against a second
+ *  concurrent retry attempt for the same message (e.g. the 'online' event
+ *  and a fresh subscribe() call both firing around the same moment). */
+const mediaRetriesInFlight = new Set<string>();
+
+/**
+ * Firebase Storage has no automatic offline queue the way Firestore does —
+ * uploadBytesResumable() genuinely fails with no network, it doesn't defer
+ * itself. This decides whether that failure should be queued for automatic
+ * retry (network-shaped: no connection, a timeout, an unknown transient
+ * error) versus shown as a real failure needing the user's attention
+ * (a small, well-known set of non-network Storage error codes). Defaults to
+ * "retry" for anything not explicitly recognized as non-network — an
+ * unexpected error is safer to queue-and-retry than to dead-end the user on
+ * with a message they can't act on.
+ */
+function isNetworkLikeStorageError(err: unknown): boolean {
+  const code = (err as { code?: string } | undefined)?.code;
+  if (!code) return true;
+  return !['storage/unauthorized', 'storage/unauthenticated', 'storage/invalid-argument'].includes(code);
+}
+
+/**
+ * Shared upload + Firestore-write logic used by the initial sendMedia
+ * attempt, retryQueuedMedia (automatic, on reconnect), and
+ * retryFailedMessage (manual tap) for media messages — one code path so all
+ * three stay in sync rather than three copies drifting apart.
+ */
+async function performMediaUpload(
+  set: SetChatState,
+  tmpId: string,
+  rec: MediaRecord,
+  senderId: PersonId,
+  senderName: string,
+  caption: string,
+  audioDuration: number | undefined,
+  replyTo: ReplyPreview | undefined,
+): Promise<void> {
+  if (!FIREBASE_CONFIGURED || !storage || !db) return;
+  try {
+    const path = `chat/${senderId}/${Date.now()}_${rec.name}`;
+    const sRef = ref(storage, path);
+    const mediaType = rec.kind;
+
+    // Voice notes only: pre-generate this message's Firestore doc id and
+    // tag the Storage upload with it — see onVoiceNoteUploaded in
+    // functions/index.js, unchanged from the original single-attempt flow.
+    const messageRef = mediaType === 'audio' ? doc(collection(db, MESSAGES_COLLECTION)) : null;
+    const task: UploadTask = uploadBytesResumable(
+      sRef,
+      rec.blob,
+      messageRef ? { customMetadata: { messageId: messageRef.id } } : undefined,
+    );
+
+    await new Promise<void>((resolve, reject) => {
+      task.on(
+        'state_changed',
+        (snap) => {
+          const pct = Math.round((snap.bytesTransferred / snap.totalBytes) * 100);
+          set({ uploadProgress: pct });
+        },
+        reject,
+        resolve,
+      );
+    });
+
+    const mediaUrl = await getDownloadURL(sRef);
+    const payload = {
+      text: caption,
+      senderId,
+      senderName,
+      mediaUrl,
+      mediaType,
+      audioDuration: audioDuration || null,
+      read: false,
+      replyTo: sanitizeReplyTo(replyTo),
+      timestamp: serverTimestamp(),
+    };
+    if (messageRef) {
+      await setDoc(messageRef, payload, { merge: true });
+    } else {
+      await addDoc(collection(db, MESSAGES_COLLECTION), payload);
+    }
+    set((s) => ({ messages: s.messages.filter((m) => m.id !== tmpId), uploading: false, uploadProgress: 0 }));
+  } catch (err) {
+    if (isNetworkLikeStorageError(err)) {
+      // Keep the local preview visible, tagged as queued — retryQueuedMedia
+      // will pick this up automatically once the app detects it's online.
+      set((s) => ({
+        messages: s.messages.map((m) => (m.id === tmpId ? { ...m, mediaQueued: true, local: false } : m)),
+        uploading: false,
+        uploadProgress: 0,
+      }));
+    } else {
+      console.error('sendMedia failed', err);
+      set((s) => ({
+        messages: s.messages.map((m) =>
+          m.id === tmpId ? { ...m, mediaQueued: false, local: false, failed: true } : m,
+        ),
+        uploading: false,
+        uploadProgress: 0,
+        mediaError: "Couldn't send — check your connection and try again.",
+      }));
+    }
+  }
+}
 
 /** Writes a call-summary system message (missed or completed) into the chat, WhatsApp-style. */
 export async function logCallEvent(
@@ -174,6 +301,12 @@ export const useChatStore = create<ChatState>()(
 
       subscribe: (currentUserId) => {
         if (!FIREBASE_CONFIGURED || !db) return null;
+
+        // Catches anything left mediaQueued from a previous session (app
+        // was closed while offline, reopened once back online — the
+        // 'online' listener below only fires for a transition that happens
+        // while the app is already running).
+        get().retryQueuedMedia();
 
         const partnerId = partnerOf(currentUserId);
 
@@ -288,8 +421,52 @@ export const useChatStore = create<ChatState>()(
       retryFailedMessage: async (id) => {
         const msg = get().messages.find((m) => m.id === id);
         if (!msg || !msg.failed) return;
+        if (msg.localMediaId) {
+          // Media message: re-fetch the actual bytes from IndexedDB (the
+          // original File/Blob can't survive a reload) and retry the same
+          // upload+write path a fresh send would use.
+          const mediaId = msg.localMediaId;
+          set((s) => ({
+            messages: s.messages.map((m) => (m.id === id ? { ...m, failed: false, local: true } : m)),
+          }));
+          const rec = await getMedia(mediaId);
+          if (!rec) {
+            set((s) => ({
+              messages: s.messages.map((m) => (m.id === id ? { ...m, failed: true, local: false } : m)),
+            }));
+            return;
+          }
+          await performMediaUpload(set, id, rec, msg.senderId, msg.senderName, msg.text, msg.audioDuration, msg.replyTo);
+          return;
+        }
         set((s) => ({ messages: s.messages.filter((m) => m.id !== id) }));
         await get().sendMessage(msg.text, msg.senderId, msg.senderName, msg.replyTo);
+      },
+
+      retryQueuedMedia: () => {
+        const queued = get().messages.filter((m) => m.mediaQueued && m.localMediaId);
+        for (const m of queued) {
+          if (mediaRetriesInFlight.has(m.id)) continue;
+          mediaRetriesInFlight.add(m.id);
+          void (async () => {
+            try {
+              const rec = await getMedia(m.localMediaId!);
+              if (!rec) {
+                // The locally-saved blob is gone (e.g. browser storage was
+                // cleared) — nothing left to retry with.
+                set((s) => ({
+                  messages: s.messages.map((msg) =>
+                    msg.id === m.id ? { ...msg, mediaQueued: false, local: false, failed: true } : msg,
+                  ),
+                }));
+                return;
+              }
+              await performMediaUpload(set, m.id, rec, m.senderId, m.senderName, m.text, m.audioDuration, m.replyTo);
+            } finally {
+              mediaRetriesInFlight.delete(m.id);
+            }
+          })();
+        }
       },
 
       clearMediaError: () => set({ mediaError: null }),
@@ -298,83 +475,43 @@ export const useChatStore = create<ChatState>()(
         if (!FIREBASE_CONFIGURED || !storage || !db) return;
 
         set({ uploading: true, uploadProgress: 0, mediaError: null });
-        try {
-          // Derived from the file's real mimetype subtype rather than hardcoded
-          // 'webm' — voice notes recorded on Safari are actually audio/mp4 (see
-          // Chat.tsx's startRecording), and this extension previously lied
-          // about that regardless of what was actually recorded.
-          const ext = file.type.includes('audio')
-            ? file.type.split('/')[1]?.split(';')[0] || 'webm'
-            : file.type.includes('video')
-            ? 'mp4'
-            : 'jpg';
-          const filename = (file as File).name || `voice-note-${Date.now()}.${ext}`;
-          const path = `chat/${senderId}/${Date.now()}_${filename}`;
-          const sRef = ref(storage, path);
-          const mediaType: 'image' | 'video' | 'audio' = file.type.startsWith('image/')
-            ? 'image'
-            : file.type.startsWith('video/')
-            ? 'video'
-            : 'audio';
 
-          // Voice notes only: pre-generate this message's Firestore doc id and
-          // tag the Storage upload with it, so the server-side transcoding
-          // function (onVoiceNoteUploaded in functions/index.js) can find and
-          // patch this exact message with a Safari-playable version once
-          // ready — Safari can't decode the WebM/Opus format other browsers
-          // record voice notes in, no matter how it's labeled.
-          const messageRef = mediaType === 'audio' ? doc(collection(db, MESSAGES_COLLECTION)) : null;
-          const task: UploadTask = uploadBytesResumable(
-            sRef,
-            file,
-            messageRef ? { customMetadata: { messageId: messageRef.id } } : undefined,
-          );
+        // Saved locally FIRST, unconditionally — this is what makes the
+        // photo/video/voice note visible immediately even with zero
+        // connectivity, and gives retryQueuedMedia/retryFailedMessage real
+        // bytes to work with later (the File object itself won't survive a
+        // page reload, only this IndexedDB id does).
+        //
+        // A voice-note Blob has no .name/extension of its own — derived from
+        // the real mimetype subtype rather than hardcoded 'webm', since
+        // Safari actually records audio/mp4 regardless of what you ask for
+        // (see Chat.tsx's startRecording).
+        const ext = file.type.includes('audio')
+          ? file.type.split('/')[1]?.split(';')[0] || 'webm'
+          : file.type.includes('video')
+          ? 'mp4'
+          : 'jpg';
+        const filename = (file as File).name || `voice-note-${Date.now()}.${ext}`;
+        const rec = await saveMedia(file, filename);
+        const localUrl = await getMediaURL(rec.id);
+        const tmpId = `local-${Date.now()}`;
+        const optimistic: ChatMessage = {
+          id: tmpId,
+          text: caption,
+          senderId,
+          senderName,
+          timestamp: Date.now(),
+          mediaUrl: localUrl || undefined,
+          mediaType: rec.kind,
+          audioDuration,
+          read: false,
+          replyTo,
+          local: true,
+          localMediaId: rec.id,
+        };
+        set((s) => ({ messages: [...s.messages, optimistic] }));
 
-          await new Promise<void>((resolve, reject) => {
-            task.on(
-              'state_changed',
-              (snap) => {
-                const pct = Math.round((snap.bytesTransferred / snap.totalBytes) * 100);
-                set({ uploadProgress: pct });
-              },
-              reject,
-              resolve,
-            );
-          });
-
-          const mediaUrl = await getDownloadURL(sRef);
-
-          const payload = {
-            text: caption,
-            senderId,
-            senderName,
-            mediaUrl,
-            mediaType,
-            audioDuration: audioDuration || null,
-            read: false,
-            replyTo: sanitizeReplyTo(replyTo),
-            timestamp: serverTimestamp(),
-          };
-          if (messageRef) {
-            // merge: true — onVoiceNoteUploaded (functions/index.js) can
-            // race ahead of this write on a slow connection and create this
-            // same doc first with just { audioUrlAac }. A plain setDoc would
-            // blow that away; merge keeps whichever side writes second from
-            // erasing the other's field.
-            await setDoc(messageRef, payload, { merge: true });
-          } else {
-            await addDoc(collection(db, MESSAGES_COLLECTION), payload);
-          }
-
-          set({ uploading: false, uploadProgress: 0 });
-        } catch (err) {
-          console.error('sendMedia failed', err);
-          set({
-            uploading: false,
-            uploadProgress: 0,
-            mediaError: "Couldn't send — check your connection and try again.",
-          });
-        }
+        await performMediaUpload(set, tmpId, rec, senderId, senderName, caption, audioDuration, replyTo);
       },
 
       reactToMessage: async (messageId, userId, emoji) => {
@@ -442,3 +579,13 @@ export const useChatStore = create<ChatState>()(
     },
   ),
 );
+
+// Module-level (not inside a component) so a queued photo/video/voice note
+// still retries the moment connectivity returns even if the user has
+// navigated away from the Chat page entirely — subscribe()'s own retry call
+// only covers "app/chat just opened", not "was already open and offline".
+if (typeof window !== 'undefined') {
+  window.addEventListener('online', () => {
+    useChatStore.getState().retryQueuedMedia();
+  });
+}

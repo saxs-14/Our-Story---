@@ -12,6 +12,7 @@ import { useMediaUrl } from '@/hooks/useMediaUrl';
 import { useProfilePhotoUrl } from '@/hooks/useProfilePhotoUrl';
 import { useDialogA11y } from '@/hooks/useDialogA11y';
 import { saveMedia, getMedia } from '@/lib/idb';
+import { MediaViewerModal } from '@/components/ui/MediaViewerModal';
 import { CloseIcon, ChevronLeftIcon } from '@/components/icons';
 import { haptic } from '@/lib/haptics';
 import { cn } from '@/lib/cn';
@@ -504,66 +505,6 @@ function MessageActionMenu({
 }
 
 /** Full-screen WhatsApp-style media viewer for a tapped image/video attachment. */
-function MediaViewerModal({
-  url,
-  type,
-  onClose,
-}: {
-  url: string;
-  type: 'image' | 'video';
-  onClose: () => void;
-}) {
-  return (
-    <motion.div
-      className="fixed inset-0 z-[95] flex items-center justify-center bg-black/95 p-4"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      onClick={onClose}
-    >
-      <button
-        type="button"
-        aria-label="Close"
-        onClick={onClose}
-        className="tap absolute right-3 top-[calc(env(safe-area-inset-top)+0.75rem)] z-10 flex h-10 w-10 items-center justify-center rounded-full bg-black/50 text-warmwhite"
-      >
-        <CloseIcon width={22} height={22} />
-      </button>
-      {type === 'image' ? (
-        <motion.img
-          src={url}
-          alt="Attachment"
-          // min-h-0/min-w-0 override the flex-item default automatic
-          // minimum size (= the image's intrinsic size for a replaced
-          // element) — without them, a large phone-camera photo can't
-          // shrink below its native resolution and overflows this flex
-          // container, getting clipped by the fixed-viewport edges instead
-          // of scaling down. max-h/w-full + object-contain only take effect
-          // once this default minimum is cleared.
-          className="max-h-full max-w-full min-h-0 min-w-0 rounded-lg object-contain"
-          initial={{ scale: 0.92, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          onClick={(e) => e.stopPropagation()}
-        />
-      ) : (
-        <motion.video
-          src={url}
-          controls
-          // No autoPlay: this video isn't muted, and iOS Safari's autoplay
-          // policy silently blocks unmuted autoplay — the play() call
-          // rejects with no visible error, leaving a black frame that looks
-          // broken. `controls` lets the user start playback themselves.
-          playsInline
-          className="max-h-full max-w-full min-h-0 min-w-0 rounded-lg object-contain"
-          initial={{ scale: 0.92, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          onClick={(e) => e.stopPropagation()}
-        />
-      )}
-    </motion.div>
-  );
-}
-
 function DayDivider({ label }: { label: string }) {
   return (
     <div className="my-4 flex items-center justify-center">
@@ -611,12 +552,17 @@ function MessageTicks({
   read,
   partnerOnline,
   pending,
+  queued,
   failed,
   onRetry,
 }: {
   read: boolean;
   partnerOnline: boolean;
   pending?: boolean;
+  /** Saved locally and waiting for connectivity — auto-retries once online,
+   *  distinct from `failed` (needs a manual tap) and `pending` (actively
+   *  uploading right now). See sendMedia/retryQueuedMedia in useChatStore. */
+  queued?: boolean;
   failed?: boolean;
   onRetry?: () => void;
 }) {
@@ -641,6 +587,18 @@ function MessageTicks({
           <span>!</span>
           <span className="text-[0.58rem] underline">Retry</span>
         </motion.button>
+      ) : queued ? (
+        <motion.span
+          key="queued"
+          initial={{ opacity: 0, scale: 0.6 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.6 }}
+          transition={{ duration: 0.18 }}
+          className="flex items-center gap-0.5 text-[0.58rem] text-white/50"
+          title="Waiting for connection — will send automatically"
+        >
+          🕓 Queued
+        </motion.span>
       ) : pending ? (
         <motion.span
           key="sending"
@@ -856,6 +814,7 @@ function MessageBubble({
               read={m.read}
               partnerOnline={partnerOnline}
               pending={m.local || m.pending}
+              queued={m.mediaQueued}
               failed={m.failed}
               onRetry={() => onRetry(m.id)}
             />
